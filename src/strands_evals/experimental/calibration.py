@@ -4,7 +4,7 @@ import asyncio
 import math
 from collections.abc import Callable
 
-from typing_extensions import Any, Generic, Self
+from typing_extensions import Any, Generic, Literal, Self
 
 from ..case import Case
 from ..experiment import Experiment
@@ -12,6 +12,14 @@ from ..types.evaluation import EvaluationData, InputT, OutputT
 from ..types.evaluation_report import EvaluationReport
 
 _EPSILON = 1e-15
+
+WeightingMethod = Literal["equal", "reliability", "inverse_step", "inverse_sqrt_step"]
+_WEIGHTING_METHODS: tuple[WeightingMethod, ...] = (
+    "equal",
+    "reliability",
+    "inverse_step",
+    "inverse_sqrt_step",
+)
 
 
 class _InMemoryEvaluationDataStore:
@@ -48,16 +56,21 @@ class Calibrator(Generic[InputT, OutputT]):
     only the evaluators.
     """
 
-    def __init__(self, step_sizes: dict[str, float]) -> None:
+    def __init__(
+        self,
+        step_sizes: dict[str, float],
+        weighting_method: WeightingMethod = "inverse_sqrt_step",
+    ) -> None:
         """Initialize a calibrator with declared evaluator score steps.
 
         Args:
             step_sizes: Mapping from evaluator instance name to its smallest
                 meaningful score increment.
+            weighting_method: Candidate rule used for the active weight vector.
 
         Raises:
             ValueError: If no evaluators are provided or a step is not finite
-                and greater than zero.
+                and greater than zero, or if the weighting method is unknown.
         """
         if not step_sizes:
             raise ValueError("step_sizes must contain at least one evaluator")
@@ -68,10 +81,21 @@ class Calibrator(Generic[InputT, OutputT]):
         }
         if invalid:
             raise ValueError(f"step_sizes must be finite and greater than zero: {invalid}")
+        if weighting_method not in _WEIGHTING_METHODS:
+            raise ValueError(f"unknown weighting method: {weighting_method!r}")
 
         self._step_sizes = {name: float(step) for name, step in step_sizes.items()}
+        self._weighting_method = weighting_method
         self._weights = self._equal_weights()
+        self._variance_components: dict[str, dict[str, float]] = {}
+        self._reliabilities: dict[str, float] = {}
+        self._candidate_weights = self._initial_candidate_weights()
         self._is_fitted = False
+
+    @property
+    def weighting_method(self) -> WeightingMethod:
+        """Return the candidate rule used for the active weight vector."""
+        return self._weighting_method
 
     @property
     def weights(self) -> dict[str, float]:
@@ -79,8 +103,25 @@ class Calibrator(Generic[InputT, OutputT]):
         return dict(self._weights)
 
     @property
+    def variance_components(self) -> dict[str, dict[str, float]]:
+        """Return corrected non-negative variance estimates by evaluator."""
+        return {name: dict(components) for name, components in self._variance_components.items()}
+
+    @property
+    def reliabilities(self) -> dict[str, float]:
+        """Return current-design reliability estimates by evaluator."""
+        return dict(self._reliabilities)
+
+    @property
+    def candidate_weights(self) -> dict[WeightingMethod, dict[str, float] | None]:
+        """Return weight vectors for every candidate weighting rule."""
+        return {
+            method: None if weights is None else dict(weights) for method, weights in self._candidate_weights.items()
+        }
+
+    @property
     def is_fitted(self) -> bool:
-        """Whether the current weights contain measurable calibration signal."""
+        """Whether fitting found measurable evaluator reliability signal."""
         return self._is_fitted
 
     def run_evaluations(
@@ -186,25 +227,30 @@ class Calibrator(Generic[InputT, OutputT]):
             raise ValueError("calibration requires at least two cases")
 
         self._weights = self._equal_weights()
+        self._variance_components = {}
+        self._reliabilities = {}
+        self._candidate_weights = self._initial_candidate_weights()
         self._is_fitted = False
 
-        unnormalized: dict[str, float] = {}
         for evaluator_name in evaluator_names:
-            reliability = self._estimate_reliability(
+            variance_components, reliability = self._estimate_statistics(
                 parsed,
                 evaluator_name,
                 case_names,
                 run_count,
                 replay_count,
             )
-            unnormalized[evaluator_name] = reliability / math.sqrt(self._step_sizes[evaluator_name])
+            self._variance_components[evaluator_name] = variance_components
+            self._reliabilities[evaluator_name] = reliability
 
-        total = sum(unnormalized.values())
-        if total <= _EPSILON:
-            return self
+        self._candidate_weights = {
+            method: self._compute_weights(method, evaluator_names) for method in _WEIGHTING_METHODS
+        }
+        selected_weights = self._candidate_weights[self._weighting_method]
+        if selected_weights is not None:
+            self._weights = selected_weights
 
-        self._weights = {name: value / total for name, value in unnormalized.items()}
-        self._is_fitted = True
+        self._is_fitted = any(reliability > _EPSILON for reliability in self._reliabilities.values())
         return self
 
     def score(self, report: EvaluationReport) -> float:
@@ -226,9 +272,69 @@ class Calibrator(Generic[InputT, OutputT]):
         }
         return sum(self._weights[name] * evaluator_scores[name] for name in evaluator_names)
 
+    def score_candidates(self, report: EvaluationReport) -> dict[WeightingMethod, float | None]:
+        """Score one report under every candidate weighting rule.
+
+        A reliability-based score is `None` when the calibration data contained
+        no measurable reliability signal for any evaluator.
+
+        Args:
+            report: Flattened report containing one row per case and evaluator.
+
+        Returns:
+            Composite score for each candidate weighting rule.
+        """
+        scores = self._extract_report_scores(report)
+        evaluator_names = sorted(scores)
+        self._validate_evaluator_names(set(evaluator_names))
+        evaluator_scores = {
+            evaluator_name: self._mean(list(scores[evaluator_name].values())) for evaluator_name in evaluator_names
+        }
+
+        candidate_scores: dict[WeightingMethod, float | None] = {}
+        for method in _WEIGHTING_METHODS:
+            weights = self._candidate_weights[method]
+            candidate_scores[method] = (
+                None if weights is None else sum(weights[name] * evaluator_scores[name] for name in evaluator_names)
+            )
+        return candidate_scores
+
     def _equal_weights(self) -> dict[str, float]:
         weight = 1.0 / len(self._step_sizes)
         return {name: weight for name in self._step_sizes}
+
+    def _initial_candidate_weights(self) -> dict[WeightingMethod, dict[str, float] | None]:
+        return {
+            "equal": self._equal_weights(),
+            "reliability": None,
+            "inverse_step": None,
+            "inverse_sqrt_step": None,
+        }
+
+    def _compute_weights(
+        self,
+        method: WeightingMethod,
+        evaluator_names: list[str],
+    ) -> dict[str, float] | None:
+        if method == "equal":
+            return self._equal_weights()
+
+        unnormalized: dict[str, float] = {}
+        for evaluator_name in evaluator_names:
+            reliability = self._reliabilities[evaluator_name]
+            step = self._step_sizes[evaluator_name]
+            if method == "reliability":
+                value = reliability
+            elif method == "inverse_step":
+                value = reliability / step
+            else:
+                value = reliability / math.sqrt(step)
+            unnormalized[evaluator_name] = value
+
+        total = sum(unnormalized.values())
+        if total <= _EPSILON:
+            return None
+        return {name: value / total for name, value in unnormalized.items()}
 
     @staticmethod
     def _validate_repetition_counts(agent_runs: int, judge_replays: int) -> None:
@@ -317,14 +423,14 @@ class Calibrator(Generic[InputT, OutputT]):
             raise ValueError("every evaluator in a report must score the same cases")
         return scores
 
-    def _estimate_reliability(
+    def _estimate_statistics(
         self,
         parsed: list[list[dict[str, dict[str, float]]]],
         evaluator_name: str,
         case_names: list[str],
         run_count: int,
         replay_count: int,
-    ) -> float:
+    ) -> tuple[dict[str, float], float]:
         replay_variances: list[float] = []
         run_means_by_case: dict[str, list[float]] = {case_name: [] for case_name in case_names}
 
@@ -349,9 +455,13 @@ class Calibrator(Generic[InputT, OutputT]):
         case_variance = self._truncate_variance(case_variance_raw)
 
         denominator = case_variance + agent_variance / run_count + judge_variance / (run_count * replay_count)
-        if denominator <= _EPSILON:
-            return 0.0
-        return case_variance / denominator
+        reliability = 0.0 if denominator <= _EPSILON else case_variance / denominator
+        variance_components = {
+            "judge": judge_variance,
+            "agent": agent_variance,
+            "case": case_variance,
+        }
+        return variance_components, reliability
 
     def _score_parsed_reports(
         self,

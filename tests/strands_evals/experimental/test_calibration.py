@@ -81,6 +81,107 @@ def test_fit_learns_reliability_weighted_vector() -> None:
     assert calibrator.weights["noisy"] == pytest.approx(0.0)
 
 
+def test_fit_retains_variance_and_reliability_diagnostics() -> None:
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+
+    calibrator.fit(_calibration_reports())
+
+    assert calibrator.variance_components["stable"] == pytest.approx(
+        {
+            "judge": 0.0,
+            "agent": 0.0,
+            "case": 0.5,
+        }
+    )
+    assert calibrator.variance_components["noisy"] == pytest.approx(
+        {
+            "judge": 0.5,
+            "agent": 0.0,
+            "case": 0.0,
+        }
+    )
+    assert calibrator.reliabilities == pytest.approx({"stable": 1.0, "noisy": 0.0})
+
+
+def test_fit_computes_all_candidate_weight_vectors() -> None:
+    reports = [
+        [
+            _report(
+                {
+                    "fine": {"case-a": 0.0, "case-b": 1.0},
+                    "coarse": {"case-a": 0.0, "case-b": 1.0},
+                }
+            )
+        ]
+        * 2,
+    ] * 2
+    calibrator = Calibrator(step_sizes={"fine": 0.25, "coarse": 1.0})
+
+    calibrator.fit(reports)
+
+    assert calibrator.candidate_weights["equal"] == pytest.approx({"fine": 0.5, "coarse": 0.5})
+    assert calibrator.candidate_weights["reliability"] == pytest.approx({"fine": 0.5, "coarse": 0.5})
+    assert calibrator.candidate_weights["inverse_step"] == pytest.approx({"fine": 0.8, "coarse": 0.2})
+    assert calibrator.candidate_weights["inverse_sqrt_step"] == pytest.approx({"fine": 2 / 3, "coarse": 1 / 3})
+
+
+def test_calibrator_can_select_candidate_weighting_method() -> None:
+    reports = [
+        [
+            _report(
+                {
+                    "fine": {"case-a": 0.0, "case-b": 1.0},
+                    "coarse": {"case-a": 0.0, "case-b": 1.0},
+                }
+            )
+        ]
+        * 2,
+    ] * 2
+    calibrator = Calibrator(
+        step_sizes={"fine": 0.25, "coarse": 1.0},
+        weighting_method="inverse_step",
+    )
+
+    calibrator.fit(reports)
+
+    assert calibrator.weighting_method == "inverse_step"
+    assert calibrator.weights == pytest.approx({"fine": 0.8, "coarse": 0.2})
+
+
+def test_score_candidates_compares_composite_sensitivity() -> None:
+    reports = [
+        [
+            _report(
+                {
+                    "fine": {"case-a": 0.0, "case-b": 1.0},
+                    "coarse": {"case-a": 0.0, "case-b": 1.0},
+                }
+            )
+        ]
+        * 2,
+    ] * 2
+    calibrator = Calibrator(step_sizes={"fine": 0.25, "coarse": 1.0})
+    calibrator.fit(reports)
+
+    scores = calibrator.score_candidates(
+        _report(
+            {
+                "fine": {"case-a": 1.0, "case-b": 1.0},
+                "coarse": {"case-a": 0.0, "case-b": 0.0},
+            }
+        )
+    )
+
+    assert scores == pytest.approx(
+        {
+            "equal": 0.5,
+            "reliability": 0.5,
+            "inverse_step": 0.8,
+            "inverse_sqrt_step": 2 / 3,
+        }
+    )
+
+
 def test_score_uses_fitted_weights() -> None:
     calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
     calibrator.fit(_calibration_reports())
@@ -114,6 +215,12 @@ def test_fit_keeps_equal_weights_when_no_case_signal_exists() -> None:
 
     assert calibrator.weights == {"first": 0.5, "second": 0.5}
     assert calibrator.is_fitted is False
+    assert calibrator.candidate_weights == {
+        "equal": {"first": 0.5, "second": 0.5},
+        "reliability": None,
+        "inverse_step": None,
+        "inverse_sqrt_step": None,
+    }
 
 
 def test_run_evaluations_reuses_each_agent_output_for_judge_replays() -> None:
@@ -191,3 +298,11 @@ def test_fit_rejects_mismatched_evaluator_names() -> None:
 
     with pytest.raises(ValueError, match="evaluator names do not match"):
         calibrator.fit(reports)
+
+
+def test_calibrator_rejects_unknown_weighting_method() -> None:
+    with pytest.raises(ValueError, match="unknown weighting method"):
+        Calibrator(
+            step_sizes={"quality": 0.5},
+            weighting_method="unknown",  # type: ignore[arg-type]
+        )
