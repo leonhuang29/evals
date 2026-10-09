@@ -182,6 +182,90 @@ def test_score_candidates_compares_composite_sensitivity() -> None:
     )
 
 
+def test_fit_computes_reproducible_hierarchical_bootstrap_intervals() -> None:
+    reports = [
+        [
+            _report(
+                {
+                    "fine": {"case-a": 0.0, "case-b": 1.0},
+                    "coarse": {"case-a": 0.0, "case-b": 1.0},
+                }
+            )
+        ]
+        * 2,
+    ] * 2
+    first = Calibrator(step_sizes={"fine": 0.25, "coarse": 1.0})
+    second = Calibrator(step_sizes={"fine": 0.25, "coarse": 1.0})
+
+    first.fit(reports, bootstrap_replicates=200, bootstrap_seed=17)
+    second.fit(reports, bootstrap_replicates=200, bootstrap_seed=17)
+
+    assert first.bootstrap_replicates == 200
+    assert first.bootstrap_seed == 17
+    assert first.reliability_intervals == second.reliability_intervals
+    assert first.candidate_weight_intervals == second.candidate_weight_intervals
+    assert first.composite_score_intervals == second.composite_score_intervals
+
+    fine_reliability = first.reliability_intervals["fine"]
+    assert fine_reliability["defined_replicates"] == 200
+    assert fine_reliability["undefined_replicates"] == 0
+    assert fine_reliability["lower_2_5"] == pytest.approx(0.0)
+    assert fine_reliability["upper_97_5"] == pytest.approx(1.0)
+
+    equal_fine = first.candidate_weight_intervals["equal"]["fine"]
+    assert equal_fine["mean"] == pytest.approx(0.5)
+    assert equal_fine["defined_replicates"] == 200
+    assert equal_fine["undefined_replicates"] == 0
+
+    learned_fine = first.candidate_weight_intervals["inverse_sqrt_step"]["fine"]
+    assert learned_fine["mean"] == pytest.approx(2 / 3)
+    assert 0 < learned_fine["defined_replicates"] < 200
+    assert learned_fine["undefined_replicates"] == 200 - learned_fine["defined_replicates"]
+
+    learned_score = first.composite_score_intervals["inverse_sqrt_step"]
+    assert learned_score["mean"] == pytest.approx(0.5)
+    assert learned_score["defined_replicates"] == learned_fine["defined_replicates"]
+    assert learned_score["undefined_replicates"] == learned_fine["undefined_replicates"]
+
+    equal_score = first.composite_score_intervals["equal"]
+    assert equal_score["defined_replicates"] == 200
+    assert equal_score["lower_2_5"] == pytest.approx(0.0)
+    assert equal_score["upper_97_5"] == pytest.approx(1.0)
+
+
+def test_fit_without_bootstrap_clears_previous_intervals() -> None:
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+    reports = _calibration_reports()
+    calibrator.fit(reports, bootstrap_replicates=20, bootstrap_seed=4)
+
+    calibrator.fit(reports)
+
+    assert calibrator.bootstrap_replicates == 0
+    assert calibrator.bootstrap_seed is None
+    assert calibrator.reliability_intervals == {}
+    assert calibrator.candidate_weight_intervals == {}
+    assert calibrator.composite_score_intervals == {}
+
+
+@pytest.mark.parametrize("replicates", [-1, 1])
+def test_fit_rejects_invalid_bootstrap_replicates(replicates: int) -> None:
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+
+    with pytest.raises(ValueError, match="bootstrap_replicates must be 0 or >= 2"):
+        calibrator.fit(_calibration_reports(), bootstrap_replicates=replicates)
+
+
+def test_fit_rejects_invalid_bootstrap_seed() -> None:
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+
+    with pytest.raises(ValueError, match="bootstrap_seed must be an integer"):
+        calibrator.fit(
+            _calibration_reports(),
+            bootstrap_replicates=2,
+            bootstrap_seed="invalid",  # type: ignore[arg-type]
+        )
+
+
 def test_score_uses_fitted_weights() -> None:
     calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
     calibrator.fit(_calibration_reports())
@@ -211,7 +295,7 @@ def test_fit_keeps_equal_weights_when_no_case_signal_exists() -> None:
     ]
     calibrator = Calibrator(step_sizes={"first": 0.5, "second": 0.5})
 
-    calibrator.fit(reports)
+    calibrator.fit(reports, bootstrap_replicates=20, bootstrap_seed=3)
 
     assert calibrator.weights == {"first": 0.5, "second": 0.5}
     assert calibrator.is_fitted is False
@@ -220,6 +304,22 @@ def test_fit_keeps_equal_weights_when_no_case_signal_exists() -> None:
         "reliability": None,
         "inverse_step": None,
         "inverse_sqrt_step": None,
+    }
+    assert calibrator.candidate_weight_intervals["inverse_sqrt_step"]["first"] == {
+        "mean": None,
+        "lower_2_5": None,
+        "median": None,
+        "upper_97_5": None,
+        "defined_replicates": 0,
+        "undefined_replicates": 20,
+    }
+    assert calibrator.composite_score_intervals["inverse_sqrt_step"] == {
+        "mean": None,
+        "lower_2_5": None,
+        "median": None,
+        "upper_97_5": None,
+        "defined_replicates": 0,
+        "undefined_replicates": 20,
     }
 
 
@@ -246,6 +346,8 @@ def test_run_evaluations_reuses_each_agent_output_for_judge_replays() -> None:
         task,
         agent_runs=2,
         judge_replays=3,
+        bootstrap_replicates=20,
+        bootstrap_seed=9,
     )
 
     assert task_calls == 4
@@ -254,6 +356,8 @@ def test_run_evaluations_reuses_each_agent_output_for_judge_replays() -> None:
     assert score == pytest.approx(0.5)
     assert calibrator.weights == {"first": 0.5, "second": 0.5}
     assert calibrator.is_fitted is True
+    assert calibrator.bootstrap_replicates == 20
+    assert calibrator.bootstrap_seed == 9
 
 
 @pytest.mark.asyncio

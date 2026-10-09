@@ -2,6 +2,7 @@
 
 import asyncio
 import math
+import random
 from collections.abc import Callable
 
 from typing_extensions import Any, Generic, Literal, Self
@@ -20,6 +21,8 @@ _WEIGHTING_METHODS: tuple[WeightingMethod, ...] = (
     "inverse_step",
     "inverse_sqrt_step",
 )
+_BootstrapSummary = dict[str, float | int | None]
+_ParsedReports = list[list[dict[str, dict[str, float]]]]
 
 
 class _InMemoryEvaluationDataStore:
@@ -90,6 +93,11 @@ class Calibrator(Generic[InputT, OutputT]):
         self._variance_components: dict[str, dict[str, float]] = {}
         self._reliabilities: dict[str, float] = {}
         self._candidate_weights = self._initial_candidate_weights()
+        self._bootstrap_replicates = 0
+        self._bootstrap_seed: int | None = None
+        self._reliability_intervals: dict[str, _BootstrapSummary] = {}
+        self._candidate_weight_intervals: dict[WeightingMethod, dict[str, _BootstrapSummary]] = {}
+        self._composite_score_intervals: dict[WeightingMethod, _BootstrapSummary] = {}
         self._is_fitted = False
 
     @property
@@ -120,6 +128,36 @@ class Calibrator(Generic[InputT, OutputT]):
         }
 
     @property
+    def bootstrap_replicates(self) -> int:
+        """Return the number of bootstrap replicates from the latest fit."""
+        return self._bootstrap_replicates
+
+    @property
+    def bootstrap_seed(self) -> int | None:
+        """Return the random seed from the latest bootstrap run."""
+        return self._bootstrap_seed
+
+    @property
+    def reliability_intervals(self) -> dict[str, dict[str, float | int | None]]:
+        """Return bootstrap summaries for evaluator reliability."""
+        return {name: dict(summary) for name, summary in self._reliability_intervals.items()}
+
+    @property
+    def candidate_weight_intervals(
+        self,
+    ) -> dict[WeightingMethod, dict[str, dict[str, float | int | None]]]:
+        """Return bootstrap summaries for every candidate weight vector."""
+        return {
+            method: {name: dict(summary) for name, summary in intervals.items()}
+            for method, intervals in self._candidate_weight_intervals.items()
+        }
+
+    @property
+    def composite_score_intervals(self) -> dict[WeightingMethod, dict[str, float | int | None]]:
+        """Return bootstrap summaries for calibration-suite composite scores."""
+        return {method: dict(summary) for method, summary in self._composite_score_intervals.items()}
+
+    @property
     def is_fitted(self) -> bool:
         """Whether fitting found measurable evaluator reliability signal."""
         return self._is_fitted
@@ -132,6 +170,8 @@ class Calibrator(Generic[InputT, OutputT]):
         agent_runs: int,
         judge_replays: int,
         max_workers: int = 1,
+        bootstrap_replicates: int = 0,
+        bootstrap_seed: int = 0,
     ) -> float:
         """Run repeated evaluations, fit weights, and return a suite score.
 
@@ -141,6 +181,9 @@ class Calibrator(Generic[InputT, OutputT]):
             agent_runs: Number of independent task executions per case.
             judge_replays: Number of evaluator passes over each fixed output.
             max_workers: Maximum parallel case workers used by the experiment.
+            bootstrap_replicates: Number of hierarchical bootstrap samples.
+                Zero disables bootstrap uncertainty estimates.
+            bootstrap_seed: Random seed used for reproducible resampling.
 
         Returns:
             The weighted score across the collected cases, runs, and replays.
@@ -157,6 +200,8 @@ class Calibrator(Generic[InputT, OutputT]):
                 agent_runs=agent_runs,
                 judge_replays=judge_replays,
                 max_workers=max_workers,
+                bootstrap_replicates=bootstrap_replicates,
+                bootstrap_seed=bootstrap_seed,
             )
         )
 
@@ -168,6 +213,8 @@ class Calibrator(Generic[InputT, OutputT]):
         agent_runs: int,
         judge_replays: int,
         max_workers: int = 10,
+        bootstrap_replicates: int = 0,
+        bootstrap_seed: int = 0,
     ) -> float:
         """Asynchronously collect repeated reports, fit weights, and score them.
 
@@ -177,6 +224,9 @@ class Calibrator(Generic[InputT, OutputT]):
             agent_runs: Number of independent task executions per case.
             judge_replays: Number of evaluator passes over each fixed output.
             max_workers: Maximum parallel case workers used by the experiment.
+            bootstrap_replicates: Number of hierarchical bootstrap samples.
+                Zero disables bootstrap uncertainty estimates.
+            bootstrap_seed: Random seed used for reproducible resampling.
 
         Returns:
             The weighted score across the collected cases, runs, and replays.
@@ -199,11 +249,21 @@ class Calibrator(Generic[InputT, OutputT]):
                 replay_reports.append(report)
             reports_by_run.append(replay_reports)
 
-        self.fit(reports_by_run)
+        self.fit(
+            reports_by_run,
+            bootstrap_replicates=bootstrap_replicates,
+            bootstrap_seed=bootstrap_seed,
+        )
         parsed, evaluator_names, case_names = self._parse_reports(reports_by_run)
         return self._score_parsed_reports(parsed, evaluator_names, case_names)
 
-    def fit(self, reports_by_run: list[list[EvaluationReport]]) -> Self:
+    def fit(
+        self,
+        reports_by_run: list[list[EvaluationReport]],
+        *,
+        bootstrap_replicates: int = 0,
+        bootstrap_seed: int = 0,
+    ) -> Self:
         """Learn evaluator weights from repeated evaluation reports.
 
         The outer list represents independent agent runs. Each inner list
@@ -211,14 +271,19 @@ class Calibrator(Generic[InputT, OutputT]):
 
         Args:
             reports_by_run: Reports grouped by agent run and judge replay.
+            bootstrap_replicates: Number of hierarchical bootstrap samples.
+                Zero disables bootstrap uncertainty estimates.
+            bootstrap_seed: Random seed used for reproducible resampling.
 
         Returns:
             This calibrator with its weight vector updated.
 
         Raises:
             ValueError: If the report hierarchy is incomplete, unbalanced, or
-                incompatible with the configured evaluator names.
+                incompatible with the configured evaluator names, or bootstrap
+                options are invalid.
         """
+        self._validate_bootstrap_options(bootstrap_replicates, bootstrap_seed)
         parsed, evaluator_names, case_names = self._parse_reports(reports_by_run)
         run_count = len(parsed)
         replay_count = len(parsed[0])
@@ -230,6 +295,7 @@ class Calibrator(Generic[InputT, OutputT]):
         self._variance_components = {}
         self._reliabilities = {}
         self._candidate_weights = self._initial_candidate_weights()
+        self._reset_bootstrap()
         self._is_fitted = False
 
         for evaluator_name in evaluator_names:
@@ -244,13 +310,21 @@ class Calibrator(Generic[InputT, OutputT]):
             self._reliabilities[evaluator_name] = reliability
 
         self._candidate_weights = {
-            method: self._compute_weights(method, evaluator_names) for method in _WEIGHTING_METHODS
+            method: self._compute_weights(method, evaluator_names, self._reliabilities) for method in _WEIGHTING_METHODS
         }
         selected_weights = self._candidate_weights[self._weighting_method]
         if selected_weights is not None:
             self._weights = selected_weights
 
         self._is_fitted = any(reliability > _EPSILON for reliability in self._reliabilities.values())
+        if bootstrap_replicates:
+            self._run_bootstrap(
+                parsed,
+                evaluator_names,
+                case_names,
+                bootstrap_replicates,
+                bootstrap_seed,
+            )
         return self
 
     def score(self, report: EvaluationReport) -> float:
@@ -315,13 +389,14 @@ class Calibrator(Generic[InputT, OutputT]):
         self,
         method: WeightingMethod,
         evaluator_names: list[str],
+        reliabilities: dict[str, float],
     ) -> dict[str, float] | None:
         if method == "equal":
             return self._equal_weights()
 
         unnormalized: dict[str, float] = {}
         for evaluator_name in evaluator_names:
-            reliability = self._reliabilities[evaluator_name]
+            reliability = reliabilities[evaluator_name]
             step = self._step_sizes[evaluator_name]
             if method == "reliability":
                 value = reliability
@@ -335,6 +410,20 @@ class Calibrator(Generic[InputT, OutputT]):
         if total <= _EPSILON:
             return None
         return {name: value / total for name, value in unnormalized.items()}
+
+    def _reset_bootstrap(self) -> None:
+        self._bootstrap_replicates = 0
+        self._bootstrap_seed = None
+        self._reliability_intervals = {}
+        self._candidate_weight_intervals = {}
+        self._composite_score_intervals = {}
+
+    @staticmethod
+    def _validate_bootstrap_options(replicates: int, seed: int) -> None:
+        if not isinstance(replicates, int) or isinstance(replicates, bool) or replicates < 0 or replicates == 1:
+            raise ValueError(f"bootstrap_replicates must be 0 or >= 2, got {replicates}")
+        if not isinstance(seed, int) or isinstance(seed, bool):
+            raise ValueError(f"bootstrap_seed must be an integer, got {seed!r}")
 
     @staticmethod
     def _validate_repetition_counts(agent_runs: int, judge_replays: int) -> None:
@@ -354,7 +443,7 @@ class Calibrator(Generic[InputT, OutputT]):
     def _parse_reports(
         self,
         reports_by_run: list[list[EvaluationReport]],
-    ) -> tuple[list[list[dict[str, dict[str, float]]]], list[str], list[str]]:
+    ) -> tuple[_ParsedReports, list[str], list[str]]:
         if not reports_by_run:
             raise ValueError("reports_by_run must contain at least one agent run")
         if not reports_by_run[0]:
@@ -425,7 +514,7 @@ class Calibrator(Generic[InputT, OutputT]):
 
     def _estimate_statistics(
         self,
-        parsed: list[list[dict[str, dict[str, float]]]],
+        parsed: _ParsedReports,
         evaluator_name: str,
         case_names: list[str],
         run_count: int,
@@ -465,10 +554,19 @@ class Calibrator(Generic[InputT, OutputT]):
 
     def _score_parsed_reports(
         self,
-        parsed: list[list[dict[str, dict[str, float]]]],
+        parsed: _ParsedReports,
         evaluator_names: list[str],
         case_names: list[str],
     ) -> float:
+        evaluator_scores = self._evaluator_scores(parsed, evaluator_names, case_names)
+        return self._weighted_score(evaluator_scores, self._weights)
+
+    def _evaluator_scores(
+        self,
+        parsed: _ParsedReports,
+        evaluator_names: list[str],
+        case_names: list[str],
+    ) -> dict[str, float]:
         evaluator_scores: dict[str, float] = {}
         for evaluator_name in evaluator_names:
             case_scores = []
@@ -478,8 +576,131 @@ class Calibrator(Generic[InputT, OutputT]):
                 ]
                 case_scores.append(self._mean(values))
             evaluator_scores[evaluator_name] = self._mean(case_scores)
+        return evaluator_scores
 
-        return sum(self._weights[name] * evaluator_scores[name] for name in evaluator_names)
+    @staticmethod
+    def _weighted_score(evaluator_scores: dict[str, float], weights: dict[str, float]) -> float:
+        return sum(weights[name] * evaluator_scores[name] for name in evaluator_scores)
+
+    def _run_bootstrap(
+        self,
+        parsed: _ParsedReports,
+        evaluator_names: list[str],
+        case_names: list[str],
+        replicates: int,
+        seed: int,
+    ) -> None:
+        rng = random.Random(seed)
+        reliability_distributions: dict[str, list[float | None]] = {name: [] for name in evaluator_names}
+        weight_distributions: dict[WeightingMethod, dict[str, list[float | None]]] = {
+            method: {name: [] for name in evaluator_names} for method in _WEIGHTING_METHODS
+        }
+        score_distributions: dict[WeightingMethod, list[float | None]] = {method: [] for method in _WEIGHTING_METHODS}
+
+        for _ in range(replicates):
+            sampled, sampled_case_names = self._bootstrap_sample(parsed, evaluator_names, case_names, rng)
+            sampled_reliabilities: dict[str, float] = {}
+            for evaluator_name in evaluator_names:
+                _, reliability = self._estimate_statistics(
+                    sampled,
+                    evaluator_name,
+                    sampled_case_names,
+                    len(sampled),
+                    len(sampled[0]),
+                )
+                sampled_reliabilities[evaluator_name] = reliability
+                reliability_distributions[evaluator_name].append(reliability)
+
+            evaluator_scores = self._evaluator_scores(sampled, evaluator_names, sampled_case_names)
+            for method in _WEIGHTING_METHODS:
+                weights = self._compute_weights(method, evaluator_names, sampled_reliabilities)
+                for evaluator_name in evaluator_names:
+                    weight_distributions[method][evaluator_name].append(
+                        None if weights is None else weights[evaluator_name]
+                    )
+                score_distributions[method].append(
+                    None if weights is None else self._weighted_score(evaluator_scores, weights)
+                )
+
+        self._bootstrap_replicates = replicates
+        self._bootstrap_seed = seed
+        self._reliability_intervals = {
+            name: self._summarize_distribution(values) for name, values in reliability_distributions.items()
+        }
+        self._candidate_weight_intervals = {
+            method: {
+                name: self._summarize_distribution(values) for name, values in weight_distributions[method].items()
+            }
+            for method in _WEIGHTING_METHODS
+        }
+        self._composite_score_intervals = {
+            method: self._summarize_distribution(values) for method, values in score_distributions.items()
+        }
+
+    @staticmethod
+    def _bootstrap_sample(
+        parsed: _ParsedReports,
+        evaluator_names: list[str],
+        case_names: list[str],
+        rng: random.Random,
+    ) -> tuple[_ParsedReports, list[str]]:
+        run_count = len(parsed)
+        replay_count = len(parsed[0])
+        sampled: _ParsedReports = [
+            [{evaluator_name: {} for evaluator_name in evaluator_names} for _ in range(replay_count)]
+            for _ in range(run_count)
+        ]
+        sampled_case_names: list[str] = []
+
+        for case_slot in range(len(case_names)):
+            source_case = rng.choice(case_names)
+            sampled_case = f"{source_case}#bootstrap-case-{case_slot}"
+            sampled_case_names.append(sampled_case)
+            for run_slot in range(run_count):
+                source_run = rng.randrange(run_count)
+                for replay_slot in range(replay_count):
+                    source_replay = rng.randrange(replay_count)
+                    source_scores = parsed[source_run][source_replay]
+                    for evaluator_name in evaluator_names:
+                        sampled[run_slot][replay_slot][evaluator_name][sampled_case] = source_scores[evaluator_name][
+                            source_case
+                        ]
+
+        return sampled, sampled_case_names
+
+    @staticmethod
+    def _summarize_distribution(values: list[float | None]) -> _BootstrapSummary:
+        defined = sorted(value for value in values if value is not None and math.isfinite(value))
+        if not defined:
+            return {
+                "mean": None,
+                "lower_2_5": None,
+                "median": None,
+                "upper_97_5": None,
+                "defined_replicates": 0,
+                "undefined_replicates": len(values),
+            }
+
+        return {
+            "mean": Calibrator._mean(defined),
+            "lower_2_5": Calibrator._percentile(defined, 0.025),
+            "median": Calibrator._percentile(defined, 0.5),
+            "upper_97_5": Calibrator._percentile(defined, 0.975),
+            "defined_replicates": len(defined),
+            "undefined_replicates": len(values) - len(defined),
+        }
+
+    @staticmethod
+    def _percentile(values: list[float], probability: float) -> float:
+        if len(values) == 1:
+            return values[0]
+        position = (len(values) - 1) * probability
+        lower_index = math.floor(position)
+        upper_index = math.ceil(position)
+        if lower_index == upper_index:
+            return values[lower_index]
+        fraction = position - lower_index
+        return values[lower_index] + fraction * (values[upper_index] - values[lower_index])
 
     @staticmethod
     def _sample_variance(values: list[float]) -> float:
