@@ -3,6 +3,7 @@ import pytest
 from strands_evals import Case, Experiment
 from strands_evals.evaluators import Evaluator
 from strands_evals.experimental import Calibrator
+from strands_evals.experimental._calibration import _step_size_fingerprint
 from strands_evals.types import EvaluationData, EvaluationOutput
 from strands_evals.types.evaluation_report import EvaluationReport
 
@@ -44,6 +45,15 @@ def _calibration_reports() -> list[list[EvaluationReport]]:
     return reports
 
 
+def _repeat_report(
+    report: EvaluationReport,
+    *,
+    agent_runs: int = 2,
+    judge_replays: int = 2,
+) -> list[list[EvaluationReport]]:
+    return [[report.model_copy(deep=True) for _ in range(judge_replays)] for _ in range(agent_runs)]
+
+
 class _CountingEvaluator(Evaluator[str, str]):
     def __init__(self, name: str):
         super().__init__(name=name)
@@ -55,19 +65,155 @@ class _CountingEvaluator(Evaluator[str, str]):
         return [EvaluationOutput(score=score, test_pass=score == 1.0)]
 
 
+class _FailingEvaluator(Evaluator[str, str]):
+    def evaluate(self, evaluation_case: EvaluationData[str, str]) -> list[EvaluationOutput]:
+        raise RuntimeError("judge crashed")
+
+
+class _ConfiguredEvaluator(Evaluator[str, str]):
+    def __init__(self, accepted_input: str, name: str):
+        super().__init__(name=name)
+        self.accepted_input = accepted_input
+        self.calls = 0
+
+    def evaluate(self, evaluation_case: EvaluationData[str, str]) -> list[EvaluationOutput]:
+        self.calls += 1
+        score = 1.0 if evaluation_case.input == self.accepted_input else 0.0
+        return [EvaluationOutput(score=score, test_pass=score == 1.0)]
+
+
 def test_calibrator_starts_with_equal_weights() -> None:
     calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
 
     assert calibrator.weights == {"stable": 0.5, "noisy": 0.5}
     assert calibrator.is_fitted is False
     assert calibrator.score(
-        _report(
-            {
-                "stable": {"case-a": 0.0, "case-b": 1.0},
-                "noisy": {"case-a": 1.0, "case-b": 1.0},
-            }
+        _repeat_report(
+            _report(
+                {
+                    "stable": {"case-a": 0.0, "case-b": 1.0},
+                    "noisy": {"case-a": 1.0, "case-b": 1.0},
+                }
+            )
         )
     ) == pytest.approx(0.75)
+
+
+def test_fit_records_repetition_design() -> None:
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+
+    assert calibrator.calibration_design is None
+
+    calibrator.fit(_calibration_reports())
+
+    assert calibrator.calibration_design == {
+        "agent_runs": 2,
+        "judge_replays": 2,
+    }
+
+
+def test_fit_records_calibration_context() -> None:
+    reports = _calibration_reports()
+    context = {
+        "version": "1",
+        "dataset": "dataset-hash",
+        "evaluators": "evaluator-hash",
+        "step_sizes": _step_size_fingerprint({"stable": 0.25, "noisy": 0.25}),
+        "overall": "overall-hash",
+    }
+    for run_reports in reports:
+        for report in run_reports:
+            report.calibration_context = dict(context)
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+
+    calibrator.fit(reports)
+
+    assert calibrator.calibration_context == context
+
+
+def test_fit_rejects_context_from_different_step_sizes() -> None:
+    reports = _calibration_reports()
+    context = {
+        "version": "1",
+        "dataset": "dataset-hash",
+        "evaluators": "evaluator-hash",
+        "step_sizes": _step_size_fingerprint({"stable": 0.5, "noisy": 0.5}),
+        "overall": "overall-hash",
+    }
+    for run_reports in reports:
+        for report in run_reports:
+            report.calibration_context = dict(context)
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+
+    with pytest.raises(
+        ValueError,
+        match="does not match the configured evaluator step sizes",
+    ):
+        calibrator.fit(reports)
+
+
+def test_fit_rejects_inconsistent_calibration_contexts() -> None:
+    reports = _calibration_reports()
+    for run_reports in reports:
+        for report in run_reports:
+            report.calibration_context = {
+                "version": "1",
+                "dataset": "dataset-a",
+                "evaluators": "evaluators",
+                "step_sizes": "steps",
+                "overall": "overall-a",
+            }
+    reports[-1][-1].calibration_context = {
+        "version": "1",
+        "dataset": "dataset-b",
+        "evaluators": "evaluators",
+        "step_sizes": "steps",
+        "overall": "overall-b",
+    }
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+
+    with pytest.raises(
+        ValueError,
+        match="incompatible calibration contexts",
+    ):
+        calibrator.fit(reports)
+
+
+def test_different_calibrators_can_learn_different_repetition_designs() -> None:
+    report = _report(
+        {
+            "stable": {"case-a": 0.0, "case-b": 1.0},
+            "noisy": {"case-a": 1.0, "case-b": 1.0},
+        }
+    )
+    first = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+    second = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+
+    first.fit(_repeat_report(report, agent_runs=2, judge_replays=3))
+    second.fit(_repeat_report(report, agent_runs=4, judge_replays=2))
+
+    assert first.calibration_design == {
+        "agent_runs": 2,
+        "judge_replays": 3,
+    }
+    assert second.calibration_design == {
+        "agent_runs": 4,
+        "judge_replays": 2,
+    }
+
+
+def test_score_rejects_single_report() -> None:
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+
+    with pytest.raises(ValueError, match="single EvaluationReport does not contain a repeated scoring design"):
+        calibrator.score(  # type: ignore[arg-type]
+            _report(
+                {
+                    "stable": {"case-a": 0.0, "case-b": 1.0},
+                    "noisy": {"case-a": 1.0, "case-b": 1.0},
+                }
+            )
+        )
 
 
 def test_fit_learns_reliability_weighted_vector() -> None:
@@ -164,11 +310,13 @@ def test_score_candidates_compares_composite_sensitivity() -> None:
     calibrator.fit(reports)
 
     scores = calibrator.score_candidates(
-        _report(
-            {
-                "fine": {"case-a": 1.0, "case-b": 1.0},
-                "coarse": {"case-a": 0.0, "case-b": 0.0},
-            }
+        _repeat_report(
+            _report(
+                {
+                    "fine": {"case-a": 1.0, "case-b": 1.0},
+                    "coarse": {"case-a": 0.0, "case-b": 0.0},
+                }
+            )
         )
     )
 
@@ -271,15 +419,90 @@ def test_score_uses_fitted_weights() -> None:
     calibrator.fit(_calibration_reports())
 
     score = calibrator.score(
-        _report(
-            {
-                "stable": {"case-a": 0.0, "case-b": 1.0},
-                "noisy": {"case-a": 1.0, "case-b": 1.0},
-            }
+        _repeat_report(
+            _report(
+                {
+                    "stable": {"case-a": 0.0, "case-b": 1.0},
+                    "noisy": {"case-a": 1.0, "case-b": 1.0},
+                }
+            )
         )
     )
 
     assert score == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize(
+    ("agent_runs", "judge_replays"),
+    [
+        (3, 2),
+        (2, 3),
+    ],
+)
+def test_score_rejects_mismatched_repetition_design(
+    agent_runs: int,
+    judge_replays: int,
+) -> None:
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+    calibrator.fit(_calibration_reports())
+    report = _report(
+        {
+            "stable": {"case-a": 0.0, "case-b": 1.0},
+            "noisy": {"case-a": 1.0, "case-b": 1.0},
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="scoring design must match the fitted calibration design",
+    ):
+        calibrator.score(
+            _repeat_report(
+                report,
+                agent_runs=agent_runs,
+                judge_replays=judge_replays,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("agent_runs", "judge_replays"),
+    [
+        (3, 2),
+        (2, 3),
+    ],
+)
+def test_fit_rejects_mismatched_repetition_design(
+    agent_runs: int,
+    judge_replays: int,
+) -> None:
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+    calibrator.fit(_calibration_reports())
+    original_weights = calibrator.weights
+    report = _report(
+        {
+            "stable": {"case-a": 0.0, "case-b": 1.0},
+            "noisy": {"case-a": 1.0, "case-b": 1.0},
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="fit design must match the fitted calibration design",
+    ):
+        calibrator.fit(
+            _repeat_report(
+                report,
+                agent_runs=agent_runs,
+                judge_replays=judge_replays,
+            )
+        )
+
+    assert calibrator.calibration_design == {
+        "agent_runs": 2,
+        "judge_replays": 2,
+    }
+    assert calibrator.weights == original_weights
 
 
 def test_fit_keeps_equal_weights_when_no_case_signal_exists() -> None:
@@ -358,6 +581,229 @@ def test_run_evaluations_reuses_each_agent_output_for_judge_replays() -> None:
     assert calibrator.is_fitted is True
     assert calibrator.bootstrap_replicates == 20
     assert calibrator.bootstrap_seed == 9
+
+
+def test_run_evaluations_rejects_task_failure_rows() -> None:
+    experiment = Experiment(
+        cases=[
+            Case(name="good-case", input="good"),
+            Case(name="bad-case", input="bad"),
+        ],
+        evaluators=[_CountingEvaluator(name="quality")],
+    )
+
+    def task(case: Case[str, str]) -> str:
+        if case.input == "bad":
+            raise RuntimeError("task crashed")
+        return case.input
+
+    calibrator = Calibrator(step_sizes={"quality": 0.5})
+
+    with pytest.raises(
+        ValueError,
+        match="calibration cannot use failed evaluation rows.*bad-case.*quality.*An error occurred: task crashed",
+    ):
+        calibrator.run_evaluations(
+            experiment,
+            task,
+            agent_runs=2,
+            judge_replays=2,
+        )
+
+
+def test_run_evaluations_rejects_evaluator_failure_rows() -> None:
+    experiment = Experiment(
+        cases=[
+            Case(name="good-case", input="good"),
+            Case(name="bad-case", input="bad"),
+        ],
+        evaluators=[_FailingEvaluator(name="quality")],
+    )
+    calibrator = Calibrator(step_sizes={"quality": 0.5})
+
+    with pytest.raises(
+        ValueError,
+        match="calibration cannot use failed evaluation rows.*good-case.*quality.*Evaluator error: judge crashed",
+    ):
+        calibrator.run_evaluations(
+            experiment,
+            lambda case: case.input,
+            agent_runs=2,
+            judge_replays=2,
+        )
+
+
+def test_run_evaluations_validates_bootstrap_before_task_execution() -> None:
+    experiment = Experiment(
+        cases=[
+            Case(name="good-case", input="good"),
+            Case(name="bad-case", input="bad"),
+        ],
+        evaluators=[_CountingEvaluator(name="quality")],
+    )
+    task_calls = 0
+
+    def task(case: Case[str, str]) -> str:
+        nonlocal task_calls
+        task_calls += 1
+        return case.input
+
+    calibrator = Calibrator(step_sizes={"quality": 0.5})
+
+    with pytest.raises(ValueError, match="bootstrap_replicates must be 0 or >= 2"):
+        calibrator.run_evaluations(
+            experiment,
+            task,
+            agent_runs=2,
+            judge_replays=2,
+            bootstrap_replicates=1,
+        )
+
+    assert task_calls == 0
+
+
+def test_run_evaluations_rejects_mismatched_design_before_task_execution() -> None:
+    experiment = Experiment(
+        cases=[
+            Case(name="good-case", input="good"),
+            Case(name="bad-case", input="bad"),
+        ],
+        evaluators=[_CountingEvaluator(name="quality")],
+    )
+    calibrator = Calibrator(step_sizes={"quality": 0.5})
+    calibrator.fit(
+        _repeat_report(
+            _report(
+                {
+                    "quality": {
+                        "good-case": 1.0,
+                        "bad-case": 0.0,
+                    }
+                }
+            ),
+            agent_runs=2,
+            judge_replays=2,
+        )
+    )
+    task_calls = 0
+
+    def task(case: Case[str, str]) -> str:
+        nonlocal task_calls
+        task_calls += 1
+        return case.input
+
+    with pytest.raises(
+        ValueError,
+        match="evaluation design must match the fitted calibration design",
+    ):
+        calibrator.run_evaluations(
+            experiment,
+            task,
+            agent_runs=3,
+            judge_replays=2,
+        )
+
+    assert task_calls == 0
+
+
+def test_run_evaluations_rejects_changed_dataset_before_task_execution() -> None:
+    evaluator = _CountingEvaluator(name="quality")
+    original = Experiment(
+        cases=[
+            Case(name="good-case", input="good"),
+            Case(name="bad-case", input="bad"),
+        ],
+        evaluators=[evaluator],
+    )
+    calibrator = Calibrator(step_sizes={"quality": 0.5})
+    task_calls = 0
+
+    def task(case: Case[str, str]) -> str:
+        nonlocal task_calls
+        task_calls += 1
+        return case.input
+
+    calibrator.run_evaluations(
+        original,
+        task,
+        agent_runs=2,
+        judge_replays=2,
+    )
+    assert calibrator.calibration_context is not None
+    assert task_calls == 4
+
+    calibrator.run_evaluations(
+        original,
+        task,
+        agent_runs=2,
+        judge_replays=2,
+    )
+    assert task_calls == 8
+
+    changed = Experiment(
+        cases=[
+            Case(name="good-case", input="changed-good"),
+            Case(name="bad-case", input="bad"),
+        ],
+        evaluators=[_CountingEvaluator(name="quality")],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="evaluation calibration context is incompatible.*dataset",
+    ):
+        calibrator.run_evaluations(
+            changed,
+            task,
+            agent_runs=2,
+            judge_replays=2,
+        )
+
+    assert task_calls == 8
+
+
+def test_run_evaluations_rejects_changed_evaluator_before_task_execution() -> None:
+    cases = [
+        Case(name="good-case", input="good"),
+        Case(name="bad-case", input="bad"),
+    ]
+    original = Experiment(
+        cases=cases,
+        evaluators=[_ConfiguredEvaluator(accepted_input="good", name="quality")],
+    )
+    calibrator = Calibrator(step_sizes={"quality": 0.5})
+    task_calls = 0
+
+    def task(case: Case[str, str]) -> str:
+        nonlocal task_calls
+        task_calls += 1
+        return case.input
+
+    calibrator.run_evaluations(
+        original,
+        task,
+        agent_runs=2,
+        judge_replays=2,
+    )
+    assert task_calls == 4
+
+    changed = Experiment(
+        cases=cases,
+        evaluators=[_ConfiguredEvaluator(accepted_input="bad", name="quality")],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="evaluation calibration context is incompatible.*evaluators",
+    ):
+        calibrator.run_evaluations(
+            changed,
+            task,
+            agent_runs=2,
+            judge_replays=2,
+        )
+
+    assert task_calls == 4
 
 
 @pytest.mark.asyncio
