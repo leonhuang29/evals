@@ -75,8 +75,9 @@ def test_customer_can_run_and_inspect_calibration() -> None:
         "replay-noisy": 0.5,
     }
     assert calibrator.is_fitted is False
+    assert calibrator.status == "uncalibrated"
 
-    score = calibrator.run_evaluations(
+    result = calibrator.run_evaluations(
         experiment,
         task,
         agent_runs=2,
@@ -84,6 +85,7 @@ def test_customer_can_run_and_inspect_calibration() -> None:
         bootstrap_replicates=100,
         bootstrap_seed=42,
     )
+    score = result.score
 
     expected_task_calls = len(cases) * 2
     expected_evaluator_calls = len(cases) * 2 * 3
@@ -91,7 +93,17 @@ def test_customer_can_run_and_inspect_calibration() -> None:
     assert stable_evaluator.calls == expected_evaluator_calls
     assert noisy_evaluator.calls == expected_evaluator_calls
     assert score == pytest.approx(0.5)
+    assert len(result.reports_by_run) == 2
+    assert all(len(run_reports) == 3 for run_reports in result.reports_by_run)
+    assert result.status == "calibrated"
+    assert result.weights == pytest.approx(
+        {
+            "stable-quality": 1.0,
+            "replay-noisy": 0.0,
+        }
+    )
     assert calibrator.is_fitted is True
+    assert calibrator.status == "calibrated"
     assert calibrator.calibration_design == {
         "agent_runs": 2,
         "judge_replays": 3,
