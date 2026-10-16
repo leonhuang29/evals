@@ -2,20 +2,30 @@ import pytest
 
 from strands_evals import Case, Experiment
 from strands_evals.evaluators import Evaluator
-from strands_evals.experimental import Calibrator
-from strands_evals.experimental.calibrator._calibration import _step_size_fingerprint
+from strands_evals.experimental import CalibrationResult, Calibrator
+from strands_evals.experimental.calibrator._calibration import (
+    _build_calibration_context,
+    _step_size_fingerprint,
+)
 from strands_evals.types import EvaluationData, EvaluationOutput
 from strands_evals.types.evaluation_report import EvaluationReport
 
 
-def _report(scores: dict[str, dict[str, float]]) -> EvaluationReport:
+def _report(
+    scores: dict[str, dict[str, float]],
+    *,
+    case_inputs: dict[str, str] | None = None,
+) -> EvaluationReport:
     report_scores: list[float] = []
     cases: list[dict] = []
     passes: list[bool] = []
     for evaluator_name, case_scores in scores.items():
         for case_name, score in case_scores.items():
             report_scores.append(score)
-            cases.append({"name": case_name, "evaluator": evaluator_name})
+            case = {"name": case_name, "evaluator": evaluator_name}
+            if case_inputs is not None:
+                case["input"] = case_inputs[case_name]
+            cases.append(case)
             passes.append(score >= 0.5)
     return EvaluationReport(
         overall_score=sum(report_scores) / len(report_scores),
@@ -82,12 +92,47 @@ class _ConfiguredEvaluator(Evaluator[str, str]):
         return [EvaluationOutput(score=score, test_pass=score == 1.0)]
 
 
+class _OpaqueConfiguration:
+    pass
+
+
+def test_calibration_context_rejects_unstored_evaluator_configuration() -> None:
+    evaluator = _ConfiguredEvaluator(accepted_input="good", name="quality")
+    del evaluator.accepted_input
+
+    with pytest.raises(
+        ValueError,
+        match="cannot fingerprint evaluator 'quality'.*constructor parameter 'accepted_input' is not stored",
+    ):
+        _build_calibration_context(
+            [Case(name="case", input="input")],
+            [evaluator],
+            {"quality": 0.5},
+        )
+
+
+def test_calibration_context_rejects_opaque_evaluator_configuration() -> None:
+    evaluator = _ConfiguredEvaluator(accepted_input="good", name="quality")
+    evaluator.accepted_input = _OpaqueConfiguration()
+
+    with pytest.raises(
+        ValueError,
+        match="unsupported configuration value type",
+    ):
+        _build_calibration_context(
+            [Case(name="case", input="input")],
+            [evaluator],
+            {"quality": 0.5},
+        )
+
+
 def test_calibrator_starts_with_equal_weights() -> None:
     calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
 
     assert calibrator.weights == {"stable": 0.5, "noisy": 0.5}
     assert calibrator.is_fitted is False
     assert calibrator.profile is None
+    assert calibrator.status == "uncalibrated"
     assert calibrator.score(
         _repeat_report(
             _report(
@@ -256,6 +301,7 @@ def test_fit_learns_reliability_weighted_vector() -> None:
 
     assert returned is calibrator
     assert calibrator.is_fitted is True
+    assert calibrator.status == "calibrated"
     assert calibrator.weights["stable"] == pytest.approx(1.0)
     assert calibrator.weights["noisy"] == pytest.approx(0.0)
 
@@ -498,6 +544,51 @@ def test_score_rejects_mismatched_repetition_design(
         )
 
 
+def test_score_rejects_changed_cases_without_calibration_context() -> None:
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+    calibrator.fit(_calibration_reports())
+
+    changed_cases = _report(
+        {
+            "stable": {"case-x": 0.0, "case-y": 1.0},
+            "noisy": {"case-x": 1.0, "case-y": 1.0},
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="scoring report structure is incompatible.*cases",
+    ):
+        calibrator.score(_repeat_report(changed_cases))
+
+
+def test_score_rejects_changed_case_definition_without_calibration_context() -> None:
+    scores = {
+        "stable": {"case-a": 0.0, "case-b": 1.0},
+        "noisy": {"case-a": 1.0, "case-b": 1.0},
+    }
+    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+    calibrator.fit(
+        _repeat_report(
+            _report(
+                scores,
+                case_inputs={"case-a": "original-a", "case-b": "original-b"},
+            )
+        )
+    )
+
+    changed_definition = _report(
+        scores,
+        case_inputs={"case-a": "changed-a", "case-b": "original-b"},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="scoring report structure is incompatible.*cases",
+    ):
+        calibrator.score(_repeat_report(changed_definition))
+
+
 @pytest.mark.parametrize(
     ("agent_runs", "judge_replays"),
     [
@@ -554,7 +645,8 @@ def test_fit_keeps_equal_weights_when_no_case_signal_exists() -> None:
     calibrator.fit(reports, bootstrap_replicates=20, bootstrap_seed=3)
 
     assert calibrator.weights == {"first": 0.5, "second": 0.5}
-    assert calibrator.is_fitted is False
+    assert calibrator.is_fitted is True
+    assert calibrator.status == "equal_weight_fallback"
     assert calibrator.candidate_weights == {
         "equal": {"first": 0.5, "second": 0.5},
         "reliability": None,
@@ -579,6 +671,25 @@ def test_fit_keeps_equal_weights_when_no_case_signal_exists() -> None:
     }
 
 
+def test_explicit_equal_weighting_is_not_reported_as_fallback() -> None:
+    report = _report(
+        {
+            "first": {"case-a": 0.5, "case-b": 0.5},
+            "second": {"case-a": 0.5, "case-b": 0.5},
+        }
+    )
+    calibrator = Calibrator(
+        step_sizes={"first": 0.5, "second": 0.5},
+        weighting_method="equal",
+    )
+
+    calibrator.fit(_repeat_report(report))
+
+    assert calibrator.weights == {"first": 0.5, "second": 0.5}
+    assert calibrator.is_fitted is True
+    assert calibrator.status == "calibrated"
+
+
 def test_run_evaluations_reuses_each_agent_output_for_judge_replays() -> None:
     first = _CountingEvaluator(name="first")
     second = _CountingEvaluator(name="second")
@@ -597,7 +708,7 @@ def test_run_evaluations_reuses_each_agent_output_for_judge_replays() -> None:
         return case.input
 
     calibrator = Calibrator(step_sizes={"first": 0.5, "second": 0.5})
-    score = calibrator.run_evaluations(
+    result = calibrator.run_evaluations(
         experiment,
         task,
         agent_runs=2,
@@ -609,11 +720,73 @@ def test_run_evaluations_reuses_each_agent_output_for_judge_replays() -> None:
     assert task_calls == 4
     assert first.calls == 12
     assert second.calls == 12
-    assert score == pytest.approx(0.5)
+    assert isinstance(result, CalibrationResult)
+    assert result.score == pytest.approx(0.5)
+    assert len(result.reports_by_run) == 2
+    assert all(len(run_reports) == 3 for run_reports in result.reports_by_run)
+    assert result.weights == {"first": 0.5, "second": 0.5}
+    assert result.status == "calibrated"
+    assert result.calibration_context == calibrator.calibration_context
     assert calibrator.weights == {"first": 0.5, "second": 0.5}
     assert calibrator.is_fitted is True
     assert calibrator.bootstrap_replicates == 20
     assert calibrator.bootstrap_seed == 9
+
+
+def test_calibration_result_is_a_point_in_time_copy() -> None:
+    evaluator = _CountingEvaluator(name="quality")
+    experiment = Experiment(
+        cases=[
+            Case(name="good-case", input="good"),
+            Case(name="bad-case", input="bad"),
+        ],
+        evaluators=[evaluator],
+    )
+    calibrator = Calibrator(step_sizes={"quality": 0.5})
+    result = calibrator.run_evaluations(
+        experiment,
+        lambda case: case.input,
+        agent_runs=2,
+        judge_replays=2,
+    )
+    original_score = result.score
+    original_context = calibrator.calibration_context
+
+    result.reports_by_run[0][0].scores[0] = 0.25
+    result.weights["quality"] = 0.25
+    assert result.calibration_context is not None
+    result.calibration_context["dataset"] = "changed"
+
+    assert result.score == original_score
+    assert calibrator.weights == {"quality": 1.0}
+    assert calibrator.calibration_context == original_context
+
+
+def test_run_evaluations_rejects_one_case_before_task_execution() -> None:
+    evaluator = _CountingEvaluator(name="quality")
+    experiment = Experiment(
+        cases=[Case(name="only-case", input="good")],
+        evaluators=[evaluator],
+    )
+    task_calls = 0
+
+    def task(case: Case[str, str]) -> str:
+        nonlocal task_calls
+        task_calls += 1
+        return case.input
+
+    calibrator = Calibrator(step_sizes={"quality": 0.5})
+
+    with pytest.raises(ValueError, match="calibration requires at least two cases"):
+        calibrator.run_evaluations(
+            experiment,
+            task,
+            agent_runs=2,
+            judge_replays=2,
+        )
+
+    assert task_calls == 0
+    assert evaluator.calls == 0
 
 
 def test_run_evaluations_rejects_task_failure_rows() -> None:
@@ -625,7 +798,11 @@ def test_run_evaluations_rejects_task_failure_rows() -> None:
         evaluators=[_CountingEvaluator(name="quality")],
     )
 
+    task_calls = 0
+
     def task(case: Case[str, str]) -> str:
+        nonlocal task_calls
+        task_calls += 1
         if case.input == "bad":
             raise RuntimeError("task crashed")
         return case.input
@@ -642,6 +819,8 @@ def test_run_evaluations_rejects_task_failure_rows() -> None:
             agent_runs=2,
             judge_replays=2,
         )
+
+    assert task_calls == 2
 
 
 def test_run_evaluations_rejects_evaluator_failure_rows() -> None:
@@ -857,7 +1036,7 @@ async def test_run_evaluations_async_accepts_async_task() -> None:
         return case.input
 
     calibrator = Calibrator(step_sizes={"quality": 0.5})
-    score = await calibrator.run_evaluations_async(
+    result = await calibrator.run_evaluations_async(
         experiment,
         task,
         agent_runs=2,
@@ -867,7 +1046,9 @@ async def test_run_evaluations_async_accepts_async_task() -> None:
 
     assert task_calls == 4
     assert evaluator.calls == 8
-    assert score == pytest.approx(0.5)
+    assert result.score == pytest.approx(0.5)
+    assert len(result.reports_by_run) == 2
+    assert result.status == "calibrated"
     assert calibrator.weights == {"quality": 1.0}
     assert calibrator.is_fitted is True
 

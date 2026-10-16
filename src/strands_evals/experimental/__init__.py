@@ -1,7 +1,16 @@
-from .calibrator import CalibrationProfile, Calibrator, ProfileCompatibility, WeightingMethod
+from .calibrator import (
+    CalibrationProfile,
+    CalibrationResult,
+    CalibrationStatus,
+    Calibrator,
+    ProfileCompatibility,
+    WeightingMethod,
+)
 
 __all__ = [
     "CalibrationProfile",
+    "CalibrationResult",
+    "CalibrationStatus",
     "Calibrator",
     "ProfileCompatibility",
     "WeightingMethod",

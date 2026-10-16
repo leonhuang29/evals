@@ -4,8 +4,9 @@ import asyncio
 import copy
 import inspect
 import math
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
+from pydantic import BaseModel
 from typing_extensions import Any, Generic, Self
 
 from ...case import Case
@@ -13,6 +14,7 @@ from ...experiment import Experiment
 from ...types.evaluation import InputT, OutputT
 from ...types.evaluation_report import EvaluationReport
 from ._calibration import (
+    CalibrationStatus,
     _build_calibration_context,
     _CalibrationDataset,
     _collect_repeated_reports,
@@ -35,6 +37,22 @@ from .calibration_profile import (
 )
 
 
+class CalibrationResult(BaseModel):
+    """Point-in-time calibration result for in-memory inspection.
+
+    Mutating the returned observations does not recompute `score` or update the
+    fitted calibrator. This model is not a stable persistence format, and custom
+    `EvaluationReport` subclasses are not guaranteed to survive serialization
+    and deserialization.
+    """
+
+    score: float
+    reports_by_run: list[list[EvaluationReport]]
+    weights: dict[str, float]
+    status: CalibrationStatus
+    calibration_context: dict[str, Any] | None
+
+
 class Calibrator(Generic[InputT, OutputT]):
     """Learn and apply reliability-weighted evaluator weights.
 
@@ -53,6 +71,11 @@ class Calibrator(Generic[InputT, OutputT]):
         ]
     )
     ```
+
+    Reports collected through `run_evaluations` carry a full experiment
+    fingerprint. Reports supplied directly to `fit` may omit that metadata; in
+    that case, later inputs are checked using evaluator names and the stable
+    case fields available in each report.
     """
 
     def __init__(
@@ -205,8 +228,13 @@ class Calibrator(Generic[InputT, OutputT]):
 
     @property
     def is_fitted(self) -> bool:
-        """Whether fitting found measurable evaluator reliability signal."""
-        return self._state.is_fitted
+        """Whether a calibration fit has completed."""
+        return self._state.status != "uncalibrated"
+
+    @property
+    def status(self) -> CalibrationStatus:
+        """Return whether calibration is unavailable, fallback, or calibrated."""
+        return self._state.status
 
     def run_evaluations(
         self,
@@ -218,8 +246,8 @@ class Calibrator(Generic[InputT, OutputT]):
         max_workers: int = 1,
         bootstrap_replicates: int = 0,
         bootstrap_seed: int = 0,
-    ) -> float:
-        """Run repeated evaluations, fit weights, and return a suite score.
+    ) -> CalibrationResult:
+        """Run repeated evaluations, fit weights, and return the collected result.
 
         Args:
             experiment: Existing experiment containing cases and evaluators.
@@ -232,7 +260,7 @@ class Calibrator(Generic[InputT, OutputT]):
             bootstrap_seed: Random seed used for reproducible resampling.
 
         Returns:
-            The weighted score across the collected cases, runs, and replays.
+            The weighted score, raw reports, and calibration snapshot.
 
         Raises:
             ValueError: If `task` is async or repetition counts are invalid.
@@ -255,15 +283,18 @@ class Calibrator(Generic[InputT, OutputT]):
     async def run_evaluations_async(
         self,
         experiment: Experiment[InputT, OutputT],
-        task: Callable,
+        task: Callable[
+            [Case[InputT, OutputT]],
+            OutputT | dict[str, Any] | Awaitable[OutputT | dict[str, Any]],
+        ],
         *,
         agent_runs: int,
         judge_replays: int,
         max_workers: int = 10,
         bootstrap_replicates: int = 0,
         bootstrap_seed: int = 0,
-    ) -> float:
-        """Asynchronously collect repeated reports, fit weights, and score them.
+    ) -> CalibrationResult:
+        """Asynchronously collect reports, fit weights, and return the result.
 
         Args:
             experiment: Existing experiment containing cases and evaluators.
@@ -276,10 +307,12 @@ class Calibrator(Generic[InputT, OutputT]):
             bootstrap_seed: Random seed used for reproducible resampling.
 
         Returns:
-            The weighted score across the collected cases, runs, and replays.
+            The weighted score, raw reports, and calibration snapshot.
         """
         _validate_bootstrap_options(bootstrap_replicates, bootstrap_seed)
         _validate_repetition_counts(agent_runs, judge_replays)
+        if len(experiment.cases) < 2:
+            raise ValueError("calibration requires at least two cases")
         calibration_context = _build_calibration_context(
             experiment.cases,
             experiment.evaluators,
@@ -314,7 +347,15 @@ class Calibrator(Generic[InputT, OutputT]):
             bootstrap_replicates=bootstrap_replicates,
             bootstrap_seed=bootstrap_seed,
         )
-        return self.score(reports_by_run)
+        return CalibrationResult(
+            score=self.score(reports_by_run),
+            reports_by_run=[
+                [report.model_copy(deep=True) for report in replay_reports] for replay_reports in reports_by_run
+            ],
+            weights=self.weights,
+            status=self.status,
+            calibration_context=self.calibration_context,
+        )
 
     def fit(
         self,
@@ -336,7 +377,9 @@ class Calibrator(Generic[InputT, OutputT]):
 
         Raises:
             ValueError: If reports are incomplete or incompatible, or bootstrap
-                options are invalid.
+                options are invalid. Reports without a calibration context are
+                compared using evaluator names and their available stable case
+                fields.
         """
         _validate_bootstrap_options(bootstrap_replicates, bootstrap_seed)
         dataset = _prepare_calibration_dataset(
@@ -345,6 +388,7 @@ class Calibrator(Generic[InputT, OutputT]):
             step_sizes=self._step_sizes,
             expected_design=self._state.calibration_design,
             expected_context=self._state.calibration_context,
+            expected_structure=self._state.calibration_structure,
             operation="fit",
         )
 
@@ -374,7 +418,8 @@ class Calibrator(Generic[InputT, OutputT]):
 
         Raises:
             ValueError: If the report hierarchy does not match the fitted
-                agent-run and judge-replay counts.
+                repetition design, stable case definitions, evaluator names,
+                or calibration context.
         """
         dataset = self._scoring_dataset(reports_by_run)
         return _weighted_score(dataset.evaluator_scores(), self._state.weights)
@@ -412,5 +457,6 @@ class Calibrator(Generic[InputT, OutputT]):
             step_sizes=self._step_sizes,
             expected_design=self._state.calibration_design,
             expected_context=self._state.calibration_context,
+            expected_structure=self._state.calibration_structure,
             operation="scoring",
         )

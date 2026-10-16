@@ -12,7 +12,7 @@ from enum import Enum
 
 from pydantic import BaseModel
 from strands.models.model import Model
-from typing_extensions import Any
+from typing_extensions import Any, Literal
 
 from ...case import Case
 from ...evaluators.evaluator import Evaluator
@@ -29,8 +29,21 @@ from .calibration_profile import (
 _EPSILON = 1e-15
 _ERROR_REASON_PREFIXES = ("An error occurred:", "Evaluator error:")
 _CALIBRATION_CONTEXT_VERSION = "1"
+_RUNTIME_CASE_FIELDS = {
+    "actual_environment_state",
+    "actual_interactions",
+    "actual_output",
+    "actual_trajectory",
+    "evaluator",
+    "evaluator_type",
+    "session_id",
+}
+
+CalibrationStatus = Literal["uncalibrated", "equal_weight_fallback", "calibrated"]
 
 _ParsedReports = list[list[dict[str, dict[str, float]]]]
+_CaseSignatures = tuple[tuple[str, str], ...]
+_CalibrationStructure = tuple[tuple[str, ...], _CaseSignatures]
 
 
 @dataclass(frozen=True)
@@ -64,7 +77,8 @@ class _CalibrationState:
     calibration_design: tuple[int, int] | None
     calibration_context: dict[str, Any] | None
     case_count: int | None
-    is_fitted: bool
+    calibration_structure: _CalibrationStructure | None
+    status: CalibrationStatus
 
 
 @dataclass(frozen=True)
@@ -79,9 +93,15 @@ class _CalibrationDataset:
     parsed: _ParsedReports
     evaluator_names: tuple[str, ...]
     case_names: tuple[str, ...]
+    case_signatures: _CaseSignatures
     run_count: int
     replay_count: int
     calibration_context: dict[str, Any] | None
+
+    @property
+    def structure(self) -> _CalibrationStructure:
+        """Return the evaluator names and stable case definitions."""
+        return self.evaluator_names, self.case_signatures
 
     @classmethod
     def from_reports(
@@ -121,6 +141,7 @@ class _CalibrationDataset:
         evaluator_names = tuple(sorted(first))
         _validate_evaluator_names(set(evaluator_names), configured_evaluators)
         case_names = tuple(sorted(next(iter(first.values()))))
+        case_signatures = _extract_case_signatures(reports_by_run[0][0])
 
         for run_index, replay_reports in enumerate(parsed):
             for replay_index, report_scores in enumerate(replay_reports):
@@ -132,6 +153,8 @@ class _CalibrationDataset:
                             f"run {run_index} replay {replay_index} evaluator "
                             f"{evaluator_name!r} has a different case set"
                         )
+                if _extract_case_signatures(reports_by_run[run_index][replay_index]) != case_signatures:
+                    raise ValueError(f"run {run_index} replay {replay_index} has different stable case definitions")
 
         run_count = len(parsed)
         _validate_repetition_counts(run_count, replay_count)
@@ -142,6 +165,7 @@ class _CalibrationDataset:
             parsed=parsed,
             evaluator_names=evaluator_names,
             case_names=case_names,
+            case_signatures=case_signatures,
             run_count=run_count,
             replay_count=replay_count,
             calibration_context=calibration_context,
@@ -169,11 +193,14 @@ class _CalibrationDataset:
             for _ in range(self.run_count)
         ]
         sampled_case_names: list[str] = []
+        sampled_case_signatures: list[tuple[str, str]] = []
+        signature_by_case = dict(self.case_signatures)
 
         for case_slot in range(len(self.case_names)):
             source_case = rng.choice(self.case_names)
             sampled_case = f"{source_case}#bootstrap-case-{case_slot}"
             sampled_case_names.append(sampled_case)
+            sampled_case_signatures.append((sampled_case, signature_by_case[source_case]))
             for run_slot in range(self.run_count):
                 source_run = rng.randrange(self.run_count)
                 for replay_slot in range(self.replay_count):
@@ -188,6 +215,7 @@ class _CalibrationDataset:
             parsed=sampled,
             evaluator_names=self.evaluator_names,
             case_names=tuple(sampled_case_names),
+            case_signatures=tuple(sampled_case_signatures),
             run_count=self.run_count,
             replay_count=self.replay_count,
             calibration_context=copy.deepcopy(self.calibration_context),
@@ -229,6 +257,7 @@ async def _collect_repeated_reports(
                 evaluation_data_store=task_store,
             )
             report.calibration_context = copy.deepcopy(calibration_context)
+            _extract_report_scores(report)
             replay_reports.append(report)
         reports_by_run.append(replay_reports)
     return reports_by_run
@@ -241,6 +270,7 @@ def _prepare_calibration_dataset(
     step_sizes: dict[str, float],
     expected_design: tuple[int, int] | None,
     expected_context: dict[str, Any] | None,
+    expected_structure: _CalibrationStructure | None,
     operation: str,
 ) -> _CalibrationDataset:
     """Parse reports and enforce the calibrator's compatibility invariants."""
@@ -255,6 +285,8 @@ def _prepare_calibration_dataset(
         actual_context=dataset.calibration_context,
         step_sizes=step_sizes,
         operation=operation,
+        expected_structure=expected_structure,
+        actual_structure=dataset.structure,
     )
     return dataset
 
@@ -341,7 +373,10 @@ def _evaluator_configuration(evaluator: Evaluator) -> dict[str, Any]:
         elif hasattr(evaluator, f"_{name}"):
             value = getattr(evaluator, f"_{name}")
         else:
-            continue
+            raise ValueError(
+                f"cannot fingerprint evaluator {evaluator.get_name()!r}: "
+                f"constructor parameter {name!r} is not stored as {name!r} or _{name!r}"
+            )
 
         if name == "model":
             model_config: dict[str, Any] = {
@@ -391,9 +426,10 @@ def _normalize_configuration_value(value: Any) -> Any:
                 f"{getattr(value, '__qualname__', value.__class__.__qualname__)}"
             )
         }
-    return {
-        "type": f"{value.__class__.__module__}.{value.__class__.__qualname__}",
-    }
+    value_type = f"{value.__class__.__module__}.{value.__class__.__qualname__}"
+    raise ValueError(
+        f"unsupported configuration value type {value_type!r}; use JSON-compatible values or a Pydantic model"
+    )
 
 
 def _fingerprint(value: Any) -> str:
@@ -414,6 +450,8 @@ def _validate_calibration_compatibility(
     actual_context: dict[str, Any] | None,
     step_sizes: dict[str, float],
     operation: str,
+    expected_structure: _CalibrationStructure | None = None,
+    actual_structure: _CalibrationStructure | None = None,
 ) -> None:
     """Require scoring and refitting inputs to match the first fitted design."""
     if expected_design is not None and actual_design != expected_design:
@@ -423,6 +461,17 @@ def _validate_calibration_compatibility(
             f"{operation} design must match the fitted calibration design; "
             f"expected agent_runs={expected_runs}, judge_replays={expected_replays}; "
             f"got agent_runs={actual_runs}, judge_replays={actual_replays}"
+        )
+
+    if expected_structure is not None and actual_structure != expected_structure:
+        changed_components: list[str] = []
+        if actual_structure is None or actual_structure[0] != expected_structure[0]:
+            changed_components.append("evaluators")
+        if actual_structure is None or actual_structure[1] != expected_structure[1]:
+            changed_components.append("cases")
+        raise ValueError(
+            f"{operation} report structure is incompatible with the fitted calibration; "
+            f"changed_components={changed_components}"
         )
 
     if actual_context is not None:
@@ -513,6 +562,23 @@ def _extract_report_scores(report: EvaluationReport) -> dict[str, dict[str, floa
     return scores
 
 
+def _extract_case_signatures(report: EvaluationReport) -> _CaseSignatures:
+    """Fingerprint stable case fields while ignoring run and evaluator output."""
+    signatures: dict[str, str] = {}
+    for index, case in enumerate(report.cases):
+        case_name = case.get("name")
+        if not isinstance(case_name, str) or not case_name:
+            raise ValueError(f"report row {index} is missing a case name")
+
+        stable_case = {key: value for key, value in case.items() if key not in _RUNTIME_CASE_FIELDS}
+        signature = _fingerprint(_normalize_configuration_value(stable_case))
+        existing = signatures.setdefault(case_name, signature)
+        if existing != signature:
+            raise ValueError(f"report contains inconsistent definitions for case {case_name!r}")
+
+    return tuple(sorted(signatures.items()))
+
+
 def _estimate_statistics(dataset: _CalibrationDataset, evaluator_name: str) -> _EvaluatorStatistics:
     """Estimate case, agent-run, and judge-replay variance and reliability."""
     replay_variances: list[float] = []
@@ -575,7 +641,8 @@ def _initial_calibration_state(step_sizes: dict[str, float]) -> _CalibrationStat
         calibration_design=None,
         calibration_context=None,
         case_count=None,
-        is_fitted=False,
+        calibration_structure=None,
+        status="uncalibrated",
     )
 
 
@@ -642,6 +709,7 @@ def _fit_dataset(
         if bootstrap_replicates
         else None
     )
+    has_reliability_signal = any(reliability > _EPSILON for reliability in reliabilities.values())
     return _CalibrationState(
         weights=_equal_weights(step_sizes) if selected_weights is None else selected_weights,
         variance_components=variance_components,
@@ -651,7 +719,10 @@ def _fit_dataset(
         calibration_design=(dataset.run_count, dataset.replay_count),
         calibration_context=copy.deepcopy(dataset.calibration_context),
         case_count=len(dataset.case_names),
-        is_fitted=any(reliability > _EPSILON for reliability in reliabilities.values()),
+        calibration_structure=dataset.structure,
+        status=(
+            "equal_weight_fallback" if weighting_method != "equal" and not has_reliability_signal else "calibrated"
+        ),
     )
 
 
@@ -703,7 +774,13 @@ def _state_from_profile(profile: CalibrationProfile) -> _CalibrationState:
         calibration_design=(profile.agent_runs, profile.judge_replays),
         calibration_context=copy.deepcopy(profile.calibration_context),
         case_count=profile.case_count,
-        is_fitted=any(reliability > _EPSILON for reliability in profile.reliabilities.values()),
+        calibration_structure=None,
+        status=(
+            "equal_weight_fallback"
+            if profile.weighting_method != "equal"
+            and not any(reliability > _EPSILON for reliability in profile.reliabilities.values())
+            else "calibrated"
+        ),
     )
 
 
