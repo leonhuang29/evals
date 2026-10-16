@@ -466,6 +466,13 @@ class TestEvaluationReportFileOperations:
                 "evaluators": "evaluator-hash",
                 "step_sizes": "step-hash",
                 "overall": "overall-hash",
+                "metadata": {
+                    "dataset": {
+                        "case_count": 1,
+                        "case_names": ["case-1"],
+                    },
+                    "evaluators": [{"name": "Eval1"}],
+                },
             },
         )
         path = tmp_path / "calibrated.json"

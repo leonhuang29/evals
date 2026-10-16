@@ -1,3 +1,8 @@
-from .calibration import Calibrator, WeightingMethod
+from .calibrator import CalibrationProfile, Calibrator, ProfileCompatibility, WeightingMethod
 
-__all__ = ["Calibrator", "WeightingMethod"]
+__all__ = [
+    "CalibrationProfile",
+    "Calibrator",
+    "ProfileCompatibility",
+    "WeightingMethod",
+]

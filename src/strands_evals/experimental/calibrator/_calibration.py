@@ -1,37 +1,35 @@
 """Private data and statistical helpers for evaluator calibration."""
 
+import copy
 import hashlib
 import inspect
 import json
 import math
 import random
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import Enum
 
 from pydantic import BaseModel
 from strands.models.model import Model
-from typing_extensions import Any, Literal
+from typing_extensions import Any
 
-from ..case import Case
-from ..evaluators.evaluator import Evaluator
-from ..experiment import Experiment
-from ..types.evaluation import EvaluationData
-from ..types.evaluation_report import EvaluationReport
+from ...case import Case
+from ...evaluators.evaluator import Evaluator
+from ...experiment import Experiment
+from ...types.evaluation import EvaluationData
+from ...types.evaluation_report import EvaluationReport
+from .calibration_profile import (
+    WEIGHTING_METHODS,
+    BootstrapSummary,
+    CalibrationProfile,
+    WeightingMethod,
+)
 
 _EPSILON = 1e-15
 _ERROR_REASON_PREFIXES = ("An error occurred:", "Evaluator error:")
 _CALIBRATION_CONTEXT_VERSION = "1"
 
-WeightingMethod = Literal["equal", "reliability", "inverse_step", "inverse_sqrt_step"]
-_WEIGHTING_METHODS: tuple[WeightingMethod, ...] = (
-    "equal",
-    "reliability",
-    "inverse_step",
-    "inverse_sqrt_step",
-)
-
-_BootstrapSummary = dict[str, float | int | None]
 _ParsedReports = list[list[dict[str, dict[str, float]]]]
 
 
@@ -49,9 +47,9 @@ class _BootstrapResult:
 
     replicates: int
     seed: int
-    reliability_intervals: dict[str, _BootstrapSummary]
-    candidate_weight_intervals: dict[WeightingMethod, dict[str, _BootstrapSummary]]
-    composite_score_intervals: dict[WeightingMethod, _BootstrapSummary]
+    reliability_intervals: dict[str, BootstrapSummary]
+    candidate_weight_intervals: dict[WeightingMethod, dict[str, BootstrapSummary]]
+    composite_score_intervals: dict[WeightingMethod, BootstrapSummary]
 
 
 @dataclass(frozen=True)
@@ -64,7 +62,8 @@ class _CalibrationState:
     candidate_weights: dict[WeightingMethod, dict[str, float] | None]
     bootstrap_result: _BootstrapResult | None
     calibration_design: tuple[int, int] | None
-    calibration_context: dict[str, str] | None
+    calibration_context: dict[str, Any] | None
+    case_count: int | None
     is_fitted: bool
 
 
@@ -82,7 +81,7 @@ class _CalibrationDataset:
     case_names: tuple[str, ...]
     run_count: int
     replay_count: int
-    calibration_context: dict[str, str] | None
+    calibration_context: dict[str, Any] | None
 
     @classmethod
     def from_reports(
@@ -191,7 +190,7 @@ class _CalibrationDataset:
             case_names=tuple(sampled_case_names),
             run_count=self.run_count,
             replay_count=self.replay_count,
-            calibration_context=(None if self.calibration_context is None else dict(self.calibration_context)),
+            calibration_context=copy.deepcopy(self.calibration_context),
         )
 
 
@@ -216,7 +215,7 @@ async def _collect_repeated_reports(
     agent_runs: int,
     judge_replays: int,
     max_workers: int,
-    calibration_context: dict[str, str],
+    calibration_context: dict[str, Any],
 ) -> list[list[EvaluationReport]]:
     """Run agent attempts and replay evaluators against each fixed output."""
     reports_by_run: list[list[EvaluationReport]] = []
@@ -229,7 +228,7 @@ async def _collect_repeated_reports(
                 max_workers=max_workers,
                 evaluation_data_store=task_store,
             )
-            report.calibration_context = dict(calibration_context)
+            report.calibration_context = copy.deepcopy(calibration_context)
             replay_reports.append(report)
         reports_by_run.append(replay_reports)
     return reports_by_run
@@ -241,7 +240,7 @@ def _prepare_calibration_dataset(
     configured_evaluators: set[str],
     step_sizes: dict[str, float],
     expected_design: tuple[int, int] | None,
-    expected_context: dict[str, str] | None,
+    expected_context: dict[str, Any] | None,
     operation: str,
 ) -> _CalibrationDataset:
     """Parse reports and enforce the calibrator's compatibility invariants."""
@@ -264,29 +263,64 @@ def _build_calibration_context(
     cases: list[Case],
     evaluators: list[Evaluator],
     step_sizes: dict[str, float],
-) -> dict[str, str]:
-    """Fingerprint the static experiment inputs that calibration depends on."""
+) -> dict[str, Any]:
+    """Fingerprint experiment inputs and retain safe audit metadata."""
     case_payloads = [
         _normalize_configuration_value(
             case.model_dump(exclude={"session_id"}),
         )
         for case in cases
     ]
+
     case_payloads.sort(key=_canonical_json)
 
     evaluator_payloads = [_evaluator_configuration(evaluator) for evaluator in evaluators]
     evaluator_payloads.sort(key=_canonical_json)
+    evaluator_metadata = [_evaluator_profile_metadata(payload) for payload in evaluator_payloads]
 
     components = {
         "dataset": _fingerprint(case_payloads),
         "evaluators": _fingerprint(evaluator_payloads),
         "step_sizes": _step_size_fingerprint(step_sizes),
     }
+
     return {
         "version": _CALIBRATION_CONTEXT_VERSION,
         **components,
         "overall": _fingerprint(components),
+        "metadata": {
+            "dataset": {
+                "fingerprint": components["dataset"],
+                "case_count": len(cases),
+                "named_case_count": sum(case.name is not None for case in cases),
+            },
+            "evaluators": evaluator_metadata,
+            "step_sizes": {name: step_sizes[name] for name in sorted(step_sizes)},
+        },
     }
+
+
+def _evaluator_profile_metadata(configuration: dict[str, Any]) -> dict[str, Any]:
+    """Reduce evaluator configuration to safe, inspectable profile metadata."""
+    parameters = configuration["parameters"]
+    metadata: dict[str, Any] = {
+        "implementation": configuration["implementation"],
+        "name": configuration["name"],
+        "configuration_fingerprint": _fingerprint(configuration),
+    }
+
+    model = parameters.get("model")
+    if isinstance(model, dict):
+        metadata["judge_model"] = {"model_id": model.get("model_id", "")}
+
+    for rubric_field in ("rubric", "system_prompt"):
+        rubric = parameters.get(rubric_field)
+        if isinstance(rubric, str):
+            metadata[rubric_field] = {
+                "sha256": hashlib.sha256(rubric.encode("utf-8")).hexdigest(),
+                "character_count": len(rubric),
+            }
+    return metadata
 
 
 def _evaluator_configuration(evaluator: Evaluator) -> dict[str, Any]:
@@ -375,9 +409,9 @@ def _step_size_fingerprint(step_sizes: dict[str, float]) -> str:
 def _validate_calibration_compatibility(
     *,
     expected_design: tuple[int, int] | None,
-    expected_context: dict[str, str] | None,
+    expected_context: dict[str, Any] | None,
     actual_design: tuple[int, int],
-    actual_context: dict[str, str] | None,
+    actual_context: dict[str, Any] | None,
     step_sizes: dict[str, float],
     operation: str,
 ) -> None:
@@ -407,7 +441,8 @@ def _validate_calibration_compatibility(
             f"{operation} calibration context must match the fitted context; "
             "cannot mix fingerprinted reports with legacy reports"
         )
-    if actual_context == expected_context:
+    compatible_components = ("version", "dataset", "evaluators", "step_sizes")
+    if all(actual_context.get(component) == expected_context.get(component) for component in compatible_components):
         return
 
     changed_components = sorted(
@@ -539,6 +574,7 @@ def _initial_calibration_state(step_sizes: dict[str, float]) -> _CalibrationStat
         bootstrap_result=None,
         calibration_design=None,
         calibration_context=None,
+        case_count=None,
         is_fitted=False,
     )
 
@@ -593,7 +629,7 @@ def _fit_dataset(
             reliabilities,
             step_sizes,
         )
-        for method in _WEIGHTING_METHODS
+        for method in WEIGHTING_METHODS
     }
     selected_weights = candidate_weights[weighting_method]
     bootstrap_result = (
@@ -613,8 +649,61 @@ def _fit_dataset(
         candidate_weights=candidate_weights,
         bootstrap_result=bootstrap_result,
         calibration_design=(dataset.run_count, dataset.replay_count),
-        calibration_context=(None if dataset.calibration_context is None else dict(dataset.calibration_context)),
+        calibration_context=copy.deepcopy(dataset.calibration_context),
+        case_count=len(dataset.case_names),
         is_fitted=any(reliability > _EPSILON for reliability in reliabilities.values()),
+    )
+
+
+def _profile_from_state(
+    state: _CalibrationState,
+    step_sizes: dict[str, float],
+    weighting_method: WeightingMethod,
+) -> CalibrationProfile:
+    """Convert a fitted runtime state into a durable profile."""
+    if state.calibration_design is None or state.case_count is None:
+        raise ValueError("calibrator must be fitted before creating a calibration profile")
+
+    agent_runs, judge_replays = state.calibration_design
+
+    return CalibrationProfile.create(
+        weighting_method=weighting_method,
+        weights=dict(state.weights),
+        step_sizes=dict(step_sizes),
+        variance_components={name: dict(components) for name, components in state.variance_components.items()},
+        reliabilities=dict(state.reliabilities),
+        bootstrap=None if state.bootstrap_result is None else asdict(state.bootstrap_result),
+        case_count=state.case_count,
+        agent_runs=agent_runs,
+        judge_replays=judge_replays,
+        calibration_context=copy.deepcopy(state.calibration_context),
+    )
+
+
+def _state_from_profile(profile: CalibrationProfile) -> _CalibrationState:
+    """Restore runtime calibration state from a validated profile."""
+    bootstrap_result = None if profile.bootstrap is None else _BootstrapResult(**profile.bootstrap.model_dump())
+
+    candidate_weights = {
+        method: _compute_weights(
+            method,
+            list(profile.step_sizes),
+            profile.reliabilities,
+            profile.step_sizes,
+        )
+        for method in WEIGHTING_METHODS
+    }
+
+    return _CalibrationState(
+        weights=dict(profile.weights),
+        variance_components={name: dict(components) for name, components in profile.variance_components.items()},
+        reliabilities=dict(profile.reliabilities),
+        candidate_weights=candidate_weights,
+        bootstrap_result=bootstrap_result,
+        calibration_design=(profile.agent_runs, profile.judge_replays),
+        calibration_context=copy.deepcopy(profile.calibration_context),
+        case_count=profile.case_count,
+        is_fitted=any(reliability > _EPSILON for reliability in profile.reliabilities.values()),
     )
 
 
@@ -628,9 +717,9 @@ def _run_bootstrap(
     rng = random.Random(seed)
     reliability_distributions: dict[str, list[float | None]] = {name: [] for name in dataset.evaluator_names}
     weight_distributions: dict[WeightingMethod, dict[str, list[float | None]]] = {
-        method: {name: [] for name in dataset.evaluator_names} for method in _WEIGHTING_METHODS
+        method: {name: [] for name in dataset.evaluator_names} for method in WEIGHTING_METHODS
     }
-    score_distributions: dict[WeightingMethod, list[float | None]] = {method: [] for method in _WEIGHTING_METHODS}
+    score_distributions: dict[WeightingMethod, list[float | None]] = {method: [] for method in WEIGHTING_METHODS}
 
     for _ in range(replicates):
         sampled = dataset.bootstrap_sample(rng)
@@ -641,7 +730,7 @@ def _run_bootstrap(
             reliability_distributions[evaluator_name].append(statistics.reliability)
 
         evaluator_scores = sampled.evaluator_scores()
-        for method in _WEIGHTING_METHODS:
+        for method in WEIGHTING_METHODS:
             weights = _compute_weights(
                 method,
                 dataset.evaluator_names,
@@ -662,7 +751,7 @@ def _run_bootstrap(
         },
         candidate_weight_intervals={
             method: {name: _summarize_distribution(values) for name, values in weight_distributions[method].items()}
-            for method in _WEIGHTING_METHODS
+            for method in WEIGHTING_METHODS
         },
         composite_score_intervals={
             method: _summarize_distribution(values) for method, values in score_distributions.items()
@@ -700,7 +789,7 @@ def _validate_evaluator_names(observed: set[str], configured: set[str]) -> None:
     raise ValueError(f"evaluator names do not match step_sizes; missing={missing}, unexpected={unexpected}")
 
 
-def _summarize_distribution(values: list[float | None]) -> _BootstrapSummary:
+def _summarize_distribution(values: list[float | None]) -> BootstrapSummary:
     """Produce percentile-bootstrap summaries and definition counts."""
     defined = sorted(value for value in values if value is not None and math.isfinite(value))
     if not defined:

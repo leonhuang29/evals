@@ -1,9 +1,10 @@
+import copy
 import json
 from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import BaseModel
-from typing_extensions import Self, TypeVar
+from typing_extensions import Any, Self, TypeVar
 
 from ..display.display_console import CollapsibleTableReportDisplay
 from ..types.evaluation import EvaluationOutput
@@ -31,7 +32,7 @@ class EvaluationReport(BaseModel):
     detailed_results: list[list[EvaluationOutput]] = []
     diagnoses: list[dict | None] = []
     recommendations: list[str | None] = []
-    calibration_context: dict[str, str] | None = None
+    calibration_context: dict[str, Any] | None = None
 
     @staticmethod
     def is_applicable(outputs: list[EvaluationOutput]) -> bool:
@@ -98,7 +99,7 @@ class EvaluationReport(BaseModel):
             diagnoses=diags,
             recommendations=recs,
             calibration_context=(
-                dict(reports[0].calibration_context)
+                copy.deepcopy(reports[0].calibration_context)
                 if all(report.calibration_context == reports[0].calibration_context for report in reports)
                 and reports[0].calibration_context is not None
                 else None

@@ -1,30 +1,37 @@
 """Experimental reliability-weighted evaluation calibration."""
 
 import asyncio
+import copy
 import inspect
 import math
 from collections.abc import Callable
 
 from typing_extensions import Any, Generic, Self
 
-from ..case import Case
-from ..experiment import Experiment
-from ..types.evaluation import InputT, OutputT
-from ..types.evaluation_report import EvaluationReport
+from ...case import Case
+from ...experiment import Experiment
+from ...types.evaluation import InputT, OutputT
+from ...types.evaluation_report import EvaluationReport
 from ._calibration import (
-    _WEIGHTING_METHODS,
-    WeightingMethod,
     _build_calibration_context,
     _CalibrationDataset,
     _collect_repeated_reports,
     _fit_dataset,
     _initial_calibration_state,
     _prepare_calibration_dataset,
+    _profile_from_state,
+    _state_from_profile,
     _validate_bootstrap_options,
     _validate_calibration_compatibility,
     _validate_evaluator_names,
     _validate_repetition_counts,
     _weighted_score,
+)
+from .calibration_profile import (
+    WEIGHTING_METHODS,
+    CalibrationProfile,
+    ProfileCompatibility,
+    WeightingMethod,
 )
 
 
@@ -73,12 +80,39 @@ class Calibrator(Generic[InputT, OutputT]):
         }
         if invalid:
             raise ValueError(f"step_sizes must be finite and greater than zero: {invalid}")
-        if weighting_method not in _WEIGHTING_METHODS:
+        if weighting_method not in WEIGHTING_METHODS:
             raise ValueError(f"unknown weighting method: {weighting_method!r}")
 
         self._step_sizes = {name: float(step) for name, step in step_sizes.items()}
         self._weighting_method = weighting_method
         self._state = _initial_calibration_state(self._step_sizes)
+        self._profile: CalibrationProfile | None = None
+
+    @classmethod
+    def from_profile(cls, profile: CalibrationProfile) -> Self:
+        """Restore a fitted calibrator from a compatible profile.
+
+        Args:
+            profile: Validated calibration profile to restore.
+
+        Returns:
+            A calibrator with the profile's weights and diagnostics.
+
+        Raises:
+            ValueError: If the profile is stale or lacks compatible context.
+        """
+        compatibility = profile.runtime_compatibility
+        if compatibility != ProfileCompatibility.COMPATIBLE:
+            raise ValueError(f"cannot restore {compatibility.value} calibration profile")
+
+        calibrator = cls(
+            step_sizes=dict(profile.step_sizes),
+            weighting_method=profile.weighting_method,
+        )
+
+        calibrator._state = _state_from_profile(profile)
+        calibrator._profile = profile.model_copy(deep=True)
+        return calibrator
 
     @property
     def weighting_method(self) -> WeightingMethod:
@@ -89,6 +123,11 @@ class Calibrator(Generic[InputT, OutputT]):
     def weights(self) -> dict[str, float]:
         """Return a copy of the current evaluator weight vector."""
         return dict(self._state.weights)
+
+    @property
+    def profile(self) -> CalibrationProfile | None:
+        """Return a copy of the fitted calibration profile, if available."""
+        return None if self._profile is None else self._profile.model_copy(deep=True)
 
     @property
     def calibration_design(self) -> dict[str, int] | None:
@@ -102,11 +141,11 @@ class Calibrator(Generic[InputT, OutputT]):
         }
 
     @property
-    def calibration_context(self) -> dict[str, str] | None:
+    def calibration_context(self) -> dict[str, Any] | None:
         """Return the fitted experiment compatibility fingerprint."""
         if self._state.calibration_context is None:
             return None
-        return dict(self._state.calibration_context)
+        return copy.deepcopy(self._state.calibration_context)
 
     @property
     def variance_components(self) -> dict[str, dict[str, float]]:
@@ -308,12 +347,19 @@ class Calibrator(Generic[InputT, OutputT]):
             expected_context=self._state.calibration_context,
             operation="fit",
         )
+
         self._state = _fit_dataset(
             dataset,
             self._step_sizes,
             self._weighting_method,
             bootstrap_replicates,
             bootstrap_seed,
+        )
+
+        self._profile = _profile_from_state(
+            self._state,
+            self._step_sizes,
+            self._weighting_method,
         )
         return self
 

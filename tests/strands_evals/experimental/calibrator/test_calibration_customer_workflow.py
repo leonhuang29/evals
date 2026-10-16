@@ -4,7 +4,7 @@ import pytest
 
 from strands_evals import Case, Experiment
 from strands_evals.evaluators import Evaluator
-from strands_evals.experimental import Calibrator
+from strands_evals.experimental import CalibrationProfile, Calibrator, ProfileCompatibility
 from strands_evals.types import EvaluationData, EvaluationOutput
 
 
@@ -41,7 +41,7 @@ def _format_number(value: float | int | None) -> str:
     return "undefined" if value is None else f"{float(value):.3f}"
 
 
-def test_customer_can_run_and_inspect_calibration() -> None:
+def test_customer_can_run_and_inspect_calibration(tmp_path) -> None:
     """Exercise calibration through the same public API a customer would use."""
     stable_evaluator = _StableQualityEvaluator()
     noisy_evaluator = _ReplayNoisyEvaluator()
@@ -112,6 +112,28 @@ def test_customer_can_run_and_inspect_calibration() -> None:
     assert calibrator.variance_components["replay-noisy"]["judge"] > 0.0
     assert calibrator.bootstrap_replicates == 100
     assert calibrator.bootstrap_seed == 42
+    profile = calibrator.profile
+    assert profile is not None
+    assert profile.case_count == len(cases)
+    assert profile.calibration_context is not None
+    metadata = profile.calibration_context["metadata"]
+    assert metadata["dataset"]["case_count"] == len(cases)
+    assert {evaluator["name"] for evaluator in metadata["evaluators"]} == {
+        "stable-quality",
+        "replay-noisy",
+    }
+    profile_path = tmp_path / "support-agent-calibration.json"
+    profile.to_file(str(profile_path))
+    loaded_profile = CalibrationProfile.from_file(str(profile_path))
+    restored_calibrator = Calibrator.from_profile(loaded_profile)
+
+    assert loaded_profile == profile
+    assert loaded_profile.runtime_compatibility == ProfileCompatibility.COMPATIBLE
+    assert restored_calibrator.profile == profile
+    assert restored_calibrator.weights == calibrator.weights
+    assert restored_calibrator.reliabilities == calibrator.reliabilities
+    assert restored_calibrator.variance_components == calibrator.variance_components
+    assert restored_calibrator.calibration_design == calibrator.calibration_design
 
     stable_weight_interval = calibrator.candidate_weight_intervals["inverse_sqrt_step"]["stable-quality"]
     noisy_weight_interval = calibrator.candidate_weight_intervals["inverse_sqrt_step"]["replay-noisy"]
@@ -164,11 +186,23 @@ def test_customer_can_run_and_inspect_calibration() -> None:
                 f"{_format_number(score_interval['upper_97_5'])}]",
                 f"  defined learned-weight fits:  {stable_weight_interval['defined_replicates']}/100",
                 "",
+                "Versioned calibration profile",
+                f"  schema version:                {profile.schema_version}",
+                f"  algorithm version:             {profile.algorithm_version}",
+                f"  profile ID:                    {profile.profile_id[:16]}...",
+                f"  saved file:                    {profile_path.name}",
+                f"  runtime compatibility:         {loaded_profile.runtime_compatibility.value}",
+                f"  stored case count:             {profile.case_count}",
+                f"  stored evaluator count:        {len(profile.weights)}",
+                "",
                 "Verified behavior",
                 "  [PASS] judge replays reused fixed agent outputs",
                 "  [PASS] stable case signal received full learned weight",
                 "  [PASS] replay-only noise received zero learned weight",
                 "  [PASS] calibrated score and uncertainty were produced",
+                "  [PASS] profile round-tripped through deterministic JSON",
+                "  [PASS] restored calibrator preserved weights and diagnostics",
+                "  [PASS] compatible profile was accepted by a fresh calibrator",
             ]
         )
         + "\n"
