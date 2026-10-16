@@ -3,7 +3,7 @@ import pytest
 from strands_evals import Case, Experiment
 from strands_evals.evaluators import Evaluator
 from strands_evals.experimental import CalibrationResult, Calibrator
-from strands_evals.experimental._calibration import (
+from strands_evals.experimental.calibrator._calibration import (
     _build_calibration_context,
     _step_size_fingerprint,
 )

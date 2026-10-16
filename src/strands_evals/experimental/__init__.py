@@ -1,4 +1,4 @@
-from .calibration import CalibrationResult, CalibrationStatus, Calibrator, WeightingMethod
+from .calibrator import CalibrationResult, CalibrationStatus, Calibrator, WeightingMethod
 
 __all__ = [
     "CalibrationResult",
