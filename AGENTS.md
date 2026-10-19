@@ -102,6 +102,10 @@ strands-evals/
 │   │   └── _context.py                       # ContextVar holding the active ChaosCase
 │   │
 │   ├── experimental/                         # Stable public API, evolving surface
+│   │   ├── calibrator/                       # Statistical evaluator calibration
+│   │   │   ├── __init__.py                   # Calibration public exports
+│   │   │   ├── calibration.py                # Public calibration facade
+│   │   │   └── _calibration.py               # Private data/statistics helpers
 │   │   └── redteam/                          # Adversarial / red-team evaluation
 │   │       ├── README.md                     # Module quick-start + walkthrough
 │   │       ├── case.py                       # RedTeamCase + RedTeamConfig
@@ -214,6 +218,9 @@ strands-evals/
 │   ├── chaos/
 │   ├── detectors/
 │   ├── experimental/
+│   │   ├── calibrator/                       # Mirrors experimental/calibrator/
+│   │   │   ├── test_calibration.py
+│   │   │   └── test_calibration_customer_workflow.py
 │   │   └── redteam/                          # Mirrors src/strands_evals/experimental/redteam/
 │   ├── simulation/
 │   ├── extractors/
