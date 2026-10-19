@@ -78,6 +78,7 @@ class _CalibrationState:
     calibration_context: dict[str, Any] | None
     case_count: int | None
     calibration_structure: _CalibrationStructure | None
+    report_structure_fingerprint: str | None
     status: CalibrationStatus
 
 
@@ -271,6 +272,7 @@ def _prepare_calibration_dataset(
     expected_design: tuple[int, int] | None,
     expected_context: dict[str, Any] | None,
     expected_structure: _CalibrationStructure | None,
+    expected_structure_fingerprint: str | None,
     operation: str,
 ) -> _CalibrationDataset:
     """Parse reports and enforce the calibrator's compatibility invariants."""
@@ -286,6 +288,7 @@ def _prepare_calibration_dataset(
         step_sizes=step_sizes,
         operation=operation,
         expected_structure=expected_structure,
+        expected_structure_fingerprint=expected_structure_fingerprint,
         actual_structure=dataset.structure,
     )
     return dataset
@@ -442,6 +445,11 @@ def _step_size_fingerprint(step_sizes: dict[str, float]) -> str:
     return _fingerprint({name: step_sizes[name] for name in sorted(step_sizes)})
 
 
+def _report_structure_fingerprint(structure: _CalibrationStructure) -> str:
+    """Fingerprint evaluator names and stable case definitions."""
+    return _fingerprint(structure)
+
+
 def _validate_calibration_compatibility(
     *,
     expected_design: tuple[int, int] | None,
@@ -451,6 +459,7 @@ def _validate_calibration_compatibility(
     step_sizes: dict[str, float],
     operation: str,
     expected_structure: _CalibrationStructure | None = None,
+    expected_structure_fingerprint: str | None = None,
     actual_structure: _CalibrationStructure | None = None,
 ) -> None:
     """Require scoring and refitting inputs to match the first fitted design."""
@@ -473,6 +482,11 @@ def _validate_calibration_compatibility(
             f"{operation} report structure is incompatible with the fitted calibration; "
             f"changed_components={changed_components}"
         )
+
+    if expected_structure_fingerprint is not None and (
+        actual_structure is None or _report_structure_fingerprint(actual_structure) != expected_structure_fingerprint
+    ):
+        raise ValueError(f"{operation} report structure is incompatible with the fitted calibration")
 
     if actual_context is not None:
         if actual_context.get("version") != _CALIBRATION_CONTEXT_VERSION:
@@ -642,6 +656,7 @@ def _initial_calibration_state(step_sizes: dict[str, float]) -> _CalibrationStat
         calibration_context=None,
         case_count=None,
         calibration_structure=None,
+        report_structure_fingerprint=None,
         status="uncalibrated",
     )
 
@@ -720,6 +735,9 @@ def _fit_dataset(
         calibration_context=copy.deepcopy(dataset.calibration_context),
         case_count=len(dataset.case_names),
         calibration_structure=dataset.structure,
+        report_structure_fingerprint=(
+            _report_structure_fingerprint(dataset.structure) if dataset.calibration_context is None else None
+        ),
         status=(
             "equal_weight_fallback" if weighting_method != "equal" and not has_reliability_signal else "calibrated"
         ),
@@ -748,6 +766,7 @@ def _profile_from_state(
         agent_runs=agent_runs,
         judge_replays=judge_replays,
         calibration_context=copy.deepcopy(state.calibration_context),
+        report_structure_fingerprint=state.report_structure_fingerprint,
     )
 
 
@@ -775,6 +794,7 @@ def _state_from_profile(profile: CalibrationProfile) -> _CalibrationState:
         calibration_context=copy.deepcopy(profile.calibration_context),
         case_count=profile.case_count,
         calibration_structure=None,
+        report_structure_fingerprint=profile.report_structure_fingerprint,
         status=(
             "equal_weight_fallback"
             if profile.weighting_method != "equal"

@@ -65,6 +65,10 @@ class CalibrationProfile(BaseModel):
     agent_runs: int = Field(ge=2)
     judge_replays: int = Field(ge=2)
     calibration_context: dict[str, Any] | None
+    report_structure_fingerprint: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     bootstrap: BootstrapDiagnostics | None = None
 
     @model_validator(mode="after")
@@ -145,7 +149,7 @@ class CalibrationProfile(BaseModel):
     @property
     def runtime_compatibility(self) -> ProfileCompatibility:
         """Classify whether this runtime can safely restore the profile."""
-        if not _has_compatibility_components(self.calibration_context):
+        if not _has_compatibility_components(self.calibration_context) and self.report_structure_fingerprint is None:
             return ProfileCompatibility.INCOMPATIBLE
 
         if self.algorithm_version < CALIBRATION_ALGORITHM_VERSION:

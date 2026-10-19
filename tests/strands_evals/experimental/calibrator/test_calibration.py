@@ -1,8 +1,10 @@
+import json
+
 import pytest
 
 from strands_evals import Case, Experiment
 from strands_evals.evaluators import Evaluator
-from strands_evals.experimental import CalibrationResult, Calibrator
+from strands_evals.experimental import CalibrationProfile, CalibrationResult, Calibrator
 from strands_evals.experimental.calibrator._calibration import (
     _build_calibration_context,
     _step_size_fingerprint,
@@ -188,6 +190,41 @@ def test_calibrator_restores_fitted_state_from_profile() -> None:
     assert restored.candidate_weights == original.candidate_weights
     assert restored.calibration_design == original.calibration_design
     assert restored.score(reports) == pytest.approx(original.score(reports))
+
+
+def test_calibrator_restores_context_free_fitted_state_from_profile() -> None:
+    reports = _calibration_reports()
+    original = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+    original.fit(reports)
+    profile = original.profile
+    assert profile is not None
+    assert profile.calibration_context is None
+    assert profile.report_structure_fingerprint is not None
+    assert "case-a" not in json.dumps(profile.to_dict())
+
+    restored = Calibrator.from_profile(CalibrationProfile.from_dict(profile.to_dict()))
+
+    assert restored.score(reports) == pytest.approx(original.score(reports))
+
+
+def test_restored_context_free_profile_rejects_changed_report_structure() -> None:
+    original = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+    original.fit(_calibration_reports())
+    profile = original.profile
+    assert profile is not None
+    restored = Calibrator.from_profile(profile)
+    changed_cases = _report(
+        {
+            "stable": {"case-x": 0.0, "case-y": 1.0},
+            "noisy": {"case-x": 1.0, "case-y": 1.0},
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="scoring report structure is incompatible with the fitted calibration",
+    ):
+        restored.score(_repeat_report(changed_cases))
 
 
 def test_fit_records_calibration_context() -> None:

@@ -389,6 +389,7 @@ class Calibrator(Generic[InputT, OutputT]):
             expected_design=self._state.calibration_design,
             expected_context=self._state.calibration_context,
             expected_structure=self._state.calibration_structure,
+            expected_structure_fingerprint=self._state.report_structure_fingerprint,
             operation="fit",
         )
 
@@ -458,5 +459,6 @@ class Calibrator(Generic[InputT, OutputT]):
             expected_design=self._state.calibration_design,
             expected_context=self._state.calibration_context,
             expected_structure=self._state.calibration_structure,
+            expected_structure_fingerprint=self._state.report_structure_fingerprint,
             operation="scoring",
         )
