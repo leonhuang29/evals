@@ -20,6 +20,7 @@ from ...experiment import Experiment
 from ...types.evaluation import EvaluationData
 from ...types.evaluation_report import EvaluationReport
 from .calibration_profile import (
+    _CALIBRATION_CONTEXT_VERSION,
     WEIGHTING_METHODS,
     BootstrapSummary,
     CalibrationProfile,
@@ -28,7 +29,6 @@ from .calibration_profile import (
 
 _EPSILON = 1e-15
 _ERROR_REASON_PREFIXES = ("An error occurred:", "Evaluator error:")
-_CALIBRATION_CONTEXT_VERSION = "1"
 _RUNTIME_CASE_FIELDS = {
     "actual_environment_state",
     "actual_interactions",

@@ -124,17 +124,18 @@ class Calibrator(Generic[InputT, OutputT]):
         Raises:
             ValueError: If the profile is stale or lacks compatible context.
         """
-        compatibility = profile.runtime_compatibility
+        validated_profile = CalibrationProfile.from_dict(profile.to_dict())
+        compatibility = validated_profile.runtime_compatibility
         if compatibility != ProfileCompatibility.COMPATIBLE:
             raise ValueError(f"cannot restore {compatibility.value} calibration profile")
 
         calibrator = cls(
-            step_sizes=dict(profile.step_sizes),
-            weighting_method=profile.weighting_method,
+            step_sizes=dict(validated_profile.step_sizes),
+            weighting_method=validated_profile.weighting_method,
         )
 
-        calibrator._state = _state_from_profile(profile)
-        calibrator._profile = profile.model_copy(deep=True)
+        calibrator._state = _state_from_profile(validated_profile)
+        calibrator._profile = validated_profile.model_copy(deep=True)
         return calibrator
 
     @property

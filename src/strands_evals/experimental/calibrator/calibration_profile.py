@@ -11,7 +11,9 @@ from typing_extensions import Any, Literal, Self, TypeGuard
 
 PROFILE_SCHEMA_VERSION = 1
 CALIBRATION_ALGORITHM_VERSION = 1
+_CALIBRATION_CONTEXT_VERSION = "1"
 _COMPATIBILITY_COMPONENTS = ("version", "dataset", "evaluators", "step_sizes")
+_VARIANCE_COMPONENTS = {"agent", "case", "judge"}
 
 WeightingMethod = Literal["equal", "reliability", "inverse_step", "inverse_sqrt_step"]
 WEIGHTING_METHODS: tuple[WeightingMethod, ...] = (
@@ -95,6 +97,16 @@ class CalibrationProfile(BaseModel):
             raise ValueError("profile weights must be finite and non-negative")
         if not math.isclose(sum(self.weights.values()), 1.0, abs_tol=1e-12):
             raise ValueError("profile weights must sum to 1")
+        if any(not math.isfinite(value) or not 0.0 <= value <= 1.0 for value in self.reliabilities.values()):
+            raise ValueError("profile reliabilities must be finite and between 0 and 1")
+        for evaluator_name, components in self.variance_components.items():
+            if set(components) != _VARIANCE_COMPONENTS:
+                raise ValueError(
+                    f"profile variance components for {evaluator_name!r} must contain exactly "
+                    f"{sorted(_VARIANCE_COMPONENTS)}"
+                )
+            if any(not math.isfinite(value) or value < 0.0 for value in components.values()):
+                raise ValueError(f"profile variance components for {evaluator_name!r} must be finite and non-negative")
 
         expected_id = self.calculate_profile_id(
             self.model_dump(mode="json", exclude={"profile_id"}),
@@ -107,6 +119,11 @@ class CalibrationProfile(BaseModel):
     def create(cls, **data: Any) -> Self:
         """Create a profile and derive its deterministic content ID."""
         profile_data = dict(data)
+        accepted_fields = set(cls.model_fields) - {"profile_id"}
+        unexpected_fields = sorted(set(profile_data) - accepted_fields)
+        if unexpected_fields:
+            raise ValueError(f"unexpected calibration profile fields: {unexpected_fields}")
+
         bootstrap = profile_data.get("bootstrap")
         if isinstance(bootstrap, dict):
             profile_data["bootstrap"] = BootstrapDiagnostics.model_validate(bootstrap)
@@ -135,10 +152,11 @@ class CalibrationProfile(BaseModel):
         runtime_compatibility = self.runtime_compatibility
         if runtime_compatibility != ProfileCompatibility.COMPATIBLE:
             return runtime_compatibility
-        if not _has_compatibility_components(calibration_context):
+        if not _has_compatibility_components(self.calibration_context) or not _has_compatibility_components(
+            calibration_context
+        ):
             return ProfileCompatibility.INCOMPATIBLE
 
-        assert self.calibration_context is not None
         if any(
             calibration_context[component] != self.calibration_context[component]
             for component in _COMPATIBILITY_COMPONENTS
@@ -149,7 +167,10 @@ class CalibrationProfile(BaseModel):
     @property
     def runtime_compatibility(self) -> ProfileCompatibility:
         """Classify whether this runtime can safely restore the profile."""
-        if not _has_compatibility_components(self.calibration_context) and self.report_structure_fingerprint is None:
+        has_calibration_context = _has_compatibility_components(self.calibration_context)
+        if not has_calibration_context and self.report_structure_fingerprint is None:
+            return ProfileCompatibility.INCOMPATIBLE
+        if has_calibration_context and self.calibration_context["version"] != _CALIBRATION_CONTEXT_VERSION:
             return ProfileCompatibility.INCOMPATIBLE
 
         if self.algorithm_version < CALIBRATION_ALGORITHM_VERSION:
@@ -160,7 +181,9 @@ class CalibrationProfile(BaseModel):
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-compatible profile dictionary."""
-        return self.model_dump(mode="json")
+        data = self.model_dump(mode="json")
+        self.__class__.model_validate(data)
+        return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:

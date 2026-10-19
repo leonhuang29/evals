@@ -38,6 +38,7 @@ def _profile(
     *,
     algorithm_version: int = 1,
     calibration_context: dict | None = None,
+    report_structure_fingerprint: str | None = None,
 ) -> CalibrationProfile:
     context = _context() if calibration_context is None else calibration_context
     return CalibrationProfile.create(
@@ -71,6 +72,7 @@ def _profile(
         agent_runs=2,
         judge_replays=3,
         calibration_context=context,
+        report_structure_fingerprint=report_structure_fingerprint,
     )
 
 
@@ -95,6 +97,43 @@ def test_profile_rejects_content_that_does_not_match_id() -> None:
 
     with pytest.raises(ValidationError, match="profile ID does not match"):
         CalibrationProfile.from_dict(data)
+
+
+@pytest.mark.parametrize("reliability", [-0.1, 1.1])
+def test_profile_rejects_out_of_range_reliability(reliability: float) -> None:
+    data = _profile().to_dict()
+    data.pop("profile_id")
+    data["reliabilities"]["stable"] = reliability
+
+    with pytest.raises(ValidationError, match="reliabilities must be finite and between 0 and 1"):
+        CalibrationProfile.create(**data)
+
+
+def test_profile_rejects_missing_variance_component() -> None:
+    data = _profile().to_dict()
+    data.pop("profile_id")
+    del data["variance_components"]["stable"]["judge"]
+
+    with pytest.raises(ValidationError, match="variance components for 'stable' must contain exactly"):
+        CalibrationProfile.create(**data)
+
+
+def test_profile_rejects_negative_variance_component() -> None:
+    data = _profile().to_dict()
+    data.pop("profile_id")
+    data["variance_components"]["stable"]["judge"] = -0.1
+
+    with pytest.raises(ValidationError, match="variance components for 'stable' must be finite and non-negative"):
+        CalibrationProfile.create(**data)
+
+
+def test_profile_create_rejects_unknown_fields() -> None:
+    data = _profile().to_dict()
+    data.pop("profile_id")
+    data["weighting_methd"] = "equal"
+
+    with pytest.raises(ValueError, match="unexpected calibration profile fields.*weighting_methd"):
+        CalibrationProfile.create(**data)
 
 
 def test_profile_rejects_unsupported_schema_version() -> None:
@@ -133,11 +172,42 @@ def test_profile_rejects_future_algorithm_during_restore() -> None:
         Calibrator.from_profile(profile)
 
 
+def test_profile_rejects_unsupported_calibration_context_version() -> None:
+    context = _context()
+    context["version"] = "2"
+    profile = _profile(calibration_context=context)
+
+    assert profile.runtime_compatibility == ProfileCompatibility.INCOMPATIBLE
+    with pytest.raises(ValueError, match="cannot restore incompatible calibration profile"):
+        Calibrator.from_profile(profile)
+
+
 def test_profile_without_context_cannot_be_restored() -> None:
     profile = _profile(calibration_context={})
 
     assert profile.runtime_compatibility == ProfileCompatibility.INCOMPATIBLE
     with pytest.raises(ValueError, match="cannot restore incompatible calibration profile"):
+        Calibrator.from_profile(profile)
+
+
+def test_context_free_profile_cannot_be_compared_to_full_context() -> None:
+    profile = _profile(
+        calibration_context={},
+        report_structure_fingerprint="a" * 64,
+    )
+
+    assert profile.runtime_compatibility == ProfileCompatibility.COMPATIBLE
+    assert profile.compatibility_with(_context()) == ProfileCompatibility.INCOMPATIBLE
+
+
+def test_mutated_profile_is_rejected_before_serialization_or_restore() -> None:
+    profile = _profile()
+    profile.weights["stable"] = 0.7
+    profile.weights["noisy"] = 0.3
+
+    with pytest.raises(ValidationError, match="profile ID does not match"):
+        profile.to_dict()
+    with pytest.raises(ValidationError, match="profile ID does not match"):
         Calibrator.from_profile(profile)
 
 
