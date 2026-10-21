@@ -1,0 +1,213 @@
+{
+  "registry_version": 1,
+  "dataset_id": "stan-issue-run-level-evaluator-replays-v1",
+  "description": "Declared evaluator metadata for the Milestone 1 run-level scoring analysis.",
+  "metadata_sources": {
+    "custom_evaluator_definition": "source/stan_issue_eval_broad.py",
+    "built_in_package": "strands-agents-evals",
+    "inspected_built_in_package_version": "1.3.0",
+    "generation_package_version_confirmed": false,
+    "note": "Version 1.3.0 was inspected to recover built-in score mappings. The exact package version used to generate the frozen report was not recorded."
+  },
+  "composite_status_values": {
+    "included": "On-axis evaluator intended for the primary composite.",
+    "provisional": "Potentially relevant evaluator whose usefulness must be established empirically.",
+    "excluded": "Diagnostic or off-axis evaluator omitted from the primary composite."
+  },
+  "evaluators": {
+    "ConcisenessEvaluator": {
+      "implementation": {
+        "kind": "built_in",
+        "class": "strands_evals.evaluators.ConcisenessEvaluator",
+        "configured_version": "v0",
+        "source_sha256": "f023f601558c283bbdc54498f210b85e7b2bfb8fa08a3506b1d678fadb3693f7"
+      },
+      "evaluation": {
+        "native_level": "trace",
+        "analysis_unit": "run",
+        "scores_per_unit": 1,
+        "input_summary": "Evaluates the final assistant response for unnecessary wording."
+      },
+      "axis": {
+        "name": "response_conciseness",
+        "description": "Whether the final response uses the minimum necessary wording.",
+        "alignment_to_coding_quality": "off_axis"
+      },
+      "scale": {
+        "type": "categorical",
+        "minimum": 0.0,
+        "maximum": 1.0,
+        "higher_is_better": true,
+        "allowed_scores": [
+          0.0,
+          0.5,
+          1.0
+        ],
+        "declared_step": {
+          "expression": "1/2",
+          "value": 0.5
+        },
+        "reported_rounding_decimals": null,
+        "test_pass_policy": {
+          "type": "threshold",
+          "threshold": 0.5
+        }
+      },
+      "composite": {
+        "status": "provisional",
+        "reason": "Retained in the Milestone 1 weighting experiment so statistical behavior and semantic relevance can be evaluated separately."
+      },
+      "notes": [
+        "Retained as a diagnostic example of a coarse, off-axis evaluator.",
+        "Its large score step can dominate an equal-weight composite.",
+        "Its inclusion in a production coding-quality composite requires separate validity evidence."
+      ]
+    },
+    "CoherenceEvaluator": {
+      "implementation": {
+        "kind": "built_in",
+        "class": "strands_evals.evaluators.CoherenceEvaluator",
+        "configured_version": "v0",
+        "source_sha256": "3f9ec3f87fdb80a41b2c27fa52006e88d0be010e2611473e58c02948aa3eebf1"
+      },
+      "evaluation": {
+        "native_level": "trace",
+        "analysis_unit": "run",
+        "scores_per_unit": 1,
+        "input_summary": "Evaluates the logical consistency and organization of the final response."
+      },
+      "axis": {
+        "name": "response_coherence",
+        "description": "Whether the final response is logically consistent and well organized.",
+        "alignment_to_coding_quality": "indirect"
+      },
+      "scale": {
+        "type": "categorical",
+        "minimum": 0.0,
+        "maximum": 1.0,
+        "higher_is_better": true,
+        "allowed_scores": [
+          0.0,
+          0.25,
+          0.5,
+          0.75,
+          1.0
+        ],
+        "declared_step": {
+          "expression": "1/4",
+          "value": 0.25
+        },
+        "reported_rounding_decimals": null,
+        "test_pass_policy": {
+          "type": "threshold",
+          "threshold": 0.5
+        }
+      },
+      "composite": {
+        "status": "provisional",
+        "reason": "Coherence is useful only if it discriminates coding quality beyond polished final prose."
+      },
+      "notes": [
+        "The frozen dataset is nearly saturated at 1.0 for this evaluator.",
+        "Low replay variance should not be interpreted as useful discrimination by itself."
+      ]
+    },
+    "FaithfulnessEvaluator": {
+      "implementation": {
+        "kind": "built_in",
+        "class": "strands_evals.evaluators.FaithfulnessEvaluator",
+        "configured_version": "v0",
+        "source_sha256": "0207b846924a16d780dc19e5b57807b77d3456215f60c6a8c90c5af00f94a11d"
+      },
+      "evaluation": {
+        "native_level": "trace",
+        "analysis_unit": "run",
+        "scores_per_unit": 1,
+        "input_summary": "Evaluates whether the final response conflicts with the conversation history."
+      },
+      "axis": {
+        "name": "response_faithfulness",
+        "description": "Whether claims in the final response are consistent with the recorded interaction.",
+        "alignment_to_coding_quality": "indirect"
+      },
+      "scale": {
+        "type": "categorical",
+        "minimum": 0.0,
+        "maximum": 1.0,
+        "higher_is_better": true,
+        "allowed_scores": [
+          0.0,
+          0.25,
+          0.5,
+          0.75,
+          1.0
+        ],
+        "declared_step": {
+          "expression": "1/4",
+          "value": 0.25
+        },
+        "reported_rounding_decimals": null,
+        "test_pass_policy": {
+          "type": "threshold",
+          "threshold": 0.5
+        }
+      },
+      "composite": {
+        "status": "provisional",
+        "reason": "Faithfulness can detect unsupported summaries, but does not directly establish that the code change is correct."
+      },
+      "notes": [
+        "The frozen dataset is nearly saturated at 1.0 for this evaluator.",
+        "Its relevance should be tested separately from its replay stability."
+      ]
+    },
+    "senior-review-strict": {
+      "implementation": {
+        "kind": "custom",
+        "class": "strands_evals.evaluators.OutputEvaluator",
+        "configured_version": null,
+        "source": "source/stan_issue_eval_broad.py",
+        "rubric_sha256": "0dc7f14b7e235829208d61f6a9c712545170707be87108034fb7fbabac8c3b42"
+      },
+      "evaluation": {
+        "native_level": "output",
+        "analysis_unit": "run",
+        "scores_per_unit": 1,
+        "input_summary": "Evaluates the task, final summary, git diff, and maintainer reference verdict."
+      },
+      "axis": {
+        "name": "coding_fix_quality",
+        "description": "Senior-review assessment of root cause, correctness, minimality, testing, blast radius, and summary honesty.",
+        "alignment_to_coding_quality": "on_axis"
+      },
+      "scale": {
+        "type": "integer_subscore_composite",
+        "minimum": 0.0,
+        "maximum": 1.0,
+        "higher_is_better": true,
+        "allowed_scores": null,
+        "component_count": 6,
+        "component_minimum": 0,
+        "component_maximum": 4,
+        "raw_total_maximum": 24,
+        "declared_step": {
+          "expression": "1/24",
+          "value": 0.041666666666666664
+        },
+        "reported_rounding_decimals": 2,
+        "test_pass_policy": {
+          "type": "judge_supplied",
+          "threshold": null
+        }
+      },
+      "composite": {
+        "status": "included",
+        "reason": "This evaluator directly measures coding-fix quality and is the current anchor evaluator."
+      },
+      "notes": [
+        "The raw step is 1/24; two-decimal reporting produces displayed gaps of approximately 0.04 or 0.05.",
+        "The rubric deliberately withholds top marks to reduce ceiling saturation."
+      ]
+    }
+  }
+}

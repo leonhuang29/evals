@@ -1,0 +1,1223 @@
+{
+  "analysis_version": 2,
+  "dataset_id": "stan-issue-run-level-evaluator-replays-v1",
+  "scoring_note": "SCORING_NOTE.md",
+  "design": {
+    "cases": 10,
+    "runs": 20,
+    "runs_per_case": 2,
+    "replays_per_run": 3,
+    "evaluators": 4,
+    "score_rows": 240
+  },
+  "bootstrap": {
+    "replicates": 2000,
+    "seed": 20260929,
+    "interval": "percentile 95%",
+    "resampling": "case, then run within case, then replay within run; evaluator vectors kept together"
+  },
+  "evaluator_sets": {
+    "primary": [
+      "ConcisenessEvaluator",
+      "CoherenceEvaluator",
+      "FaithfulnessEvaluator",
+      "senior-review-strict"
+    ],
+    "all": [
+      "ConcisenessEvaluator",
+      "CoherenceEvaluator",
+      "FaithfulnessEvaluator",
+      "senior-review-strict"
+    ],
+    "included_only": [
+      "senior-review-strict"
+    ]
+  },
+  "evaluators": {
+    "CoherenceEvaluator": {
+      "registry": {
+        "declared_step": {
+          "expression": "1/4",
+          "value": 0.25
+        },
+        "axis": {
+          "name": "response_coherence",
+          "description": "Whether the final response is logically consistent and well organized.",
+          "alignment_to_coding_quality": "indirect"
+        },
+        "composite": {
+          "status": "provisional",
+          "reason": "Coherence is useful only if it discriminates coding quality beyond polished final prose."
+        }
+      },
+      "point_estimate": {
+        "counts": {
+          "cases": 10,
+          "runs_per_case": 2,
+          "replays_per_run": 3,
+          "raw_scores": 60,
+          "moving_runs": 1
+        },
+        "scores": {
+          "suite_mean": 0.9958333333333333,
+          "suite_replay_median": 1.0,
+          "raw_mean": 0.9958333333333333,
+          "raw_sample_variance": 0.0010416666666666667,
+          "observed_minimum": 0.75,
+          "observed_maximum": 1.0,
+          "unique_values": [
+            0.75,
+            1.0
+          ],
+          "unique_value_count": 2,
+          "fraction_at_scale_maximum": 0.9833333333333333
+        },
+        "replay_movement": {
+          "moving_run_fraction": 0.05,
+          "average_range": 0.0125,
+          "maximum_range": 0.25
+        },
+        "variance_components": {
+          "judge": 0.0010416666666666667,
+          "observed_run_means": 0.00034722222222222256,
+          "agent_raw": 3.2526065174565133e-19,
+          "agent": 0.0,
+          "observed_case_means": 0.00017361111111111174,
+          "case_raw": 4.607859233063394e-19,
+          "case": 0.0
+        },
+        "reliability": {
+          "single_measurement": 0.0,
+          "current_design": 0.0
+        }
+      },
+      "bootstrap_intervals": {
+        "suite_mean": {
+          "mean": 0.9957583333333333,
+          "lower_2_5": 0.9791666666666666,
+          "median": 1.0,
+          "upper_97_5": 1.0,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "suite_replay_median": {
+          "mean": 0.9965625,
+          "lower_2_5": 0.975,
+          "median": 1.0,
+          "upper_97_5": 1.0,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "judge_variance": {
+          "mean": 0.000696875,
+          "lower_2_5": 0.0,
+          "median": 0.0,
+          "upper_97_5": 0.003125,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "agent_variance_raw": {
+          "mean": 0.00018854166666666664,
+          "lower_2_5": -0.0006944444444444445,
+          "median": 0.0,
+          "upper_97_5": 0.002777777777777777,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "agent_variance": {
+          "mean": 0.00023975694444444438,
+          "lower_2_5": 0.0,
+          "median": 0.0,
+          "upper_97_5": 0.002777777777777777,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "case_variance_raw": {
+          "mean": 0.00015497685185185186,
+          "lower_2_5": -7.716049382716113e-05,
+          "median": 0.0,
+          "upper_97_5": 0.0019290123456790153,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "case_variance": {
+          "mean": 0.00016147762345679014,
+          "lower_2_5": 0.0,
+          "median": 0.0,
+          "upper_97_5": 0.0019290123456790153,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "reliability_single": {
+          "mean": 0.037532111780089666,
+          "lower_2_5": 0.0,
+          "median": 0.0,
+          "upper_97_5": 0.4,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "reliability_design": {
+          "mean": 0.07977036882786685,
+          "lower_2_5": 0.0,
+          "median": 0.0,
+          "upper_97_5": 0.8,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        }
+      }
+    },
+    "ConcisenessEvaluator": {
+      "registry": {
+        "declared_step": {
+          "expression": "1/2",
+          "value": 0.5
+        },
+        "axis": {
+          "name": "response_conciseness",
+          "description": "Whether the final response uses the minimum necessary wording.",
+          "alignment_to_coding_quality": "off_axis"
+        },
+        "composite": {
+          "status": "provisional",
+          "reason": "Retained in the Milestone 1 weighting experiment so statistical behavior and semantic relevance can be evaluated separately."
+        }
+      },
+      "point_estimate": {
+        "counts": {
+          "cases": 10,
+          "runs_per_case": 2,
+          "replays_per_run": 3,
+          "raw_scores": 60,
+          "moving_runs": 13
+        },
+        "scores": {
+          "suite_mean": 0.775,
+          "suite_replay_median": 0.8,
+          "raw_mean": 0.775,
+          "raw_sample_variance": 0.06292372881355932,
+          "observed_minimum": 0.5,
+          "observed_maximum": 1.0,
+          "unique_values": [
+            0.5,
+            1.0
+          ],
+          "unique_value_count": 2,
+          "fraction_at_scale_maximum": 0.55
+        },
+        "replay_movement": {
+          "moving_run_fraction": 0.65,
+          "average_range": 0.325,
+          "maximum_range": 0.5
+        },
+        "variance_components": {
+          "judge": 0.05416666666666666,
+          "observed_run_means": 0.026388888888888896,
+          "agent_raw": 0.008333333333333342,
+          "agent": 0.008333333333333342,
+          "observed_case_means": 0.013966049382716055,
+          "case_raw": 0.0007716049382716066,
+          "case": 0.0007716049382716066
+        },
+        "reliability": {
+          "single_measurement": 0.012195121951219539,
+          "current_design": 0.05524861878453049
+        }
+      },
+      "bootstrap_intervals": {
+        "suite_mean": {
+          "mean": 0.775,
+          "lower_2_5": 0.6833333333333333,
+          "median": 0.775,
+          "upper_97_5": 0.8666666666666666,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "suite_replay_median": {
+          "mean": 0.78025,
+          "lower_2_5": 0.675,
+          "median": 0.775,
+          "upper_97_5": 0.9,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "judge_variance": {
+          "mean": 0.0358375,
+          "lower_2_5": 0.016666666666666666,
+          "median": 0.0375,
+          "upper_97_5": 0.05416666666666666,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "agent_variance_raw": {
+          "mean": 0.013172222222222224,
+          "lower_2_5": -0.006944444444444441,
+          "median": 0.012499999999999999,
+          "upper_97_5": 0.04027777777777778,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "agent_variance": {
+          "mean": 0.013655555555555558,
+          "lower_2_5": 0.0,
+          "median": 0.012499999999999999,
+          "upper_97_5": 0.04027777777777778,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "case_variance_raw": {
+          "mean": 0.013013734567901237,
+          "lower_2_5": -0.01049382716049383,
+          "median": 0.012962962962962971,
+          "upper_97_5": 0.03657407407407407,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "case_variance": {
+          "mean": 0.013839120370370373,
+          "lower_2_5": 0.0,
+          "median": 0.012962962962962971,
+          "upper_97_5": 0.03657407407407407,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "reliability_single": {
+          "mean": 0.21804062526142465,
+          "lower_2_5": 0.0,
+          "median": 0.20714285714285718,
+          "upper_97_5": 0.5604651162790698,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "reliability_design": {
+          "mean": 0.45842292305118576,
+          "lower_2_5": 0.0,
+          "median": 0.5178571428571426,
+          "upper_97_5": 0.8705495178325422,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        }
+      }
+    },
+    "FaithfulnessEvaluator": {
+      "registry": {
+        "declared_step": {
+          "expression": "1/4",
+          "value": 0.25
+        },
+        "axis": {
+          "name": "response_faithfulness",
+          "description": "Whether claims in the final response are consistent with the recorded interaction.",
+          "alignment_to_coding_quality": "indirect"
+        },
+        "composite": {
+          "status": "provisional",
+          "reason": "Faithfulness can detect unsupported summaries, but does not directly establish that the code change is correct."
+        }
+      },
+      "point_estimate": {
+        "counts": {
+          "cases": 10,
+          "runs_per_case": 2,
+          "replays_per_run": 3,
+          "raw_scores": 60,
+          "moving_runs": 2
+        },
+        "scores": {
+          "suite_mean": 0.9916666666666666,
+          "suite_replay_median": 1.0,
+          "raw_mean": 0.9916666666666667,
+          "raw_sample_variance": 0.0020480225988700564,
+          "observed_minimum": 0.75,
+          "observed_maximum": 1.0,
+          "unique_values": [
+            0.75,
+            1.0
+          ],
+          "unique_value_count": 2,
+          "fraction_at_scale_maximum": 0.9666666666666667
+        },
+        "replay_movement": {
+          "moving_run_fraction": 0.1,
+          "average_range": 0.025,
+          "maximum_range": 0.25
+        },
+        "variance_components": {
+          "judge": 0.0020833333333333333,
+          "observed_run_means": 0.0006944444444444451,
+          "agent_raw": 6.505213034913027e-19,
+          "agent": 0.0,
+          "observed_case_means": 0.00030864197530864305,
+          "case_raw": -3.858024691357951e-05,
+          "case": 0.0
+        },
+        "reliability": {
+          "single_measurement": 0.0,
+          "current_design": 0.0
+        }
+      },
+      "bootstrap_intervals": {
+        "suite_mean": {
+          "mean": 0.9917312500000001,
+          "lower_2_5": 0.9708333333333334,
+          "median": 0.9916666666666666,
+          "upper_97_5": 1.0,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "suite_replay_median": {
+          "mean": 0.99343125,
+          "lower_2_5": 0.975,
+          "median": 1.0,
+          "upper_97_5": 1.0,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "judge_variance": {
+          "mean": 0.0013666666666666666,
+          "lower_2_5": 0.0,
+          "median": 0.0010416666666666667,
+          "upper_97_5": 0.004166666666666667,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "agent_variance_raw": {
+          "mean": 0.0003602430555555555,
+          "lower_2_5": -0.0006944444444444445,
+          "median": 3.2526065174565133e-19,
+          "upper_97_5": 0.003125,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "agent_variance": {
+          "mean": 0.000442361111111111,
+          "lower_2_5": 0.0,
+          "median": 0.0,
+          "upper_97_5": 0.003125,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "case_variance_raw": {
+          "mean": 0.00027021604938271606,
+          "lower_2_5": -0.00027006172839506105,
+          "median": 0.0,
+          "upper_97_5": 0.002623456790123456,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "case_variance": {
+          "mean": 0.0002963734567901235,
+          "lower_2_5": 0.0,
+          "median": 0.0,
+          "upper_97_5": 0.002623456790123456,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "reliability_single": {
+          "mean": 0.06388288641222832,
+          "lower_2_5": 0.0,
+          "median": 0.0,
+          "upper_97_5": 0.4563758389261744,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "reliability_design": {
+          "mean": 0.14180941619208254,
+          "lower_2_5": 0.0,
+          "median": 0.0,
+          "upper_97_5": 0.8,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        }
+      }
+    },
+    "senior-review-strict": {
+      "registry": {
+        "declared_step": {
+          "expression": "1/24",
+          "value": 0.041666666666666664
+        },
+        "axis": {
+          "name": "coding_fix_quality",
+          "description": "Senior-review assessment of root cause, correctness, minimality, testing, blast radius, and summary honesty.",
+          "alignment_to_coding_quality": "on_axis"
+        },
+        "composite": {
+          "status": "included",
+          "reason": "This evaluator directly measures coding-fix quality and is the current anchor evaluator."
+        }
+      },
+      "point_estimate": {
+        "counts": {
+          "cases": 10,
+          "runs_per_case": 2,
+          "replays_per_run": 3,
+          "raw_scores": 60,
+          "moving_runs": 10
+        },
+        "scores": {
+          "suite_mean": 0.9435,
+          "suite_replay_median": 0.9455,
+          "raw_mean": 0.9435,
+          "raw_sample_variance": 0.0015316101694915249,
+          "observed_minimum": 0.83,
+          "observed_maximum": 1.0,
+          "unique_values": [
+            0.83,
+            0.88,
+            0.92,
+            0.96,
+            1.0
+          ],
+          "unique_value_count": 5,
+          "fraction_at_scale_maximum": 0.08333333333333333
+        },
+        "replay_movement": {
+          "moving_run_fraction": 0.5,
+          "average_range": 0.02999999999999998,
+          "maximum_range": 0.12
+        },
+        "variance_components": {
+          "judge": 0.0005866666666666661,
+          "observed_run_means": 0.0006761111111111126,
+          "agent_raw": 0.0004805555555555572,
+          "agent": 0.0004805555555555572,
+          "observed_case_means": 0.0008632407407407391,
+          "case_raw": 0.0005251851851851828,
+          "case": 0.0005251851851851828
+        },
+        "reliability": {
+          "single_measurement": 0.32980579137108845,
+          "current_design": 0.6083878579856253
+        }
+      },
+      "bootstrap_intervals": {
+        "suite_mean": {
+          "mean": 0.9433897499999999,
+          "lower_2_5": 0.9213333333333333,
+          "median": 0.9441666666666666,
+          "upper_97_5": 0.96,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "suite_replay_median": {
+          "mean": 0.94368175,
+          "lower_2_5": 0.9205,
+          "median": 0.944,
+          "upper_97_5": 0.96,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "judge_variance": {
+          "mean": 0.0003917466666666663,
+          "lower_2_5": 0.00010666666666666641,
+          "median": 0.00034666666666666656,
+          "upper_97_5": 0.0008799999999999988,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "agent_variance_raw": {
+          "mean": 0.00034083027777777824,
+          "lower_2_5": -6.22222222222219e-05,
+          "median": 0.00029333333333333284,
+          "upper_97_5": 0.001080680555555556,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "agent_variance": {
+          "mean": 0.00034530138888888936,
+          "lower_2_5": 0.0,
+          "median": 0.00029333333333333284,
+          "upper_97_5": 0.001080680555555556,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "case_variance_raw": {
+          "mean": 0.000786616790123456,
+          "lower_2_5": -0.00013730864197530792,
+          "median": 0.0005769135802469111,
+          "upper_97_5": 0.0025373101851851845,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "case_variance": {
+          "mean": 0.0007950361728395055,
+          "lower_2_5": 0.0,
+          "median": 0.0005769135802469111,
+          "upper_97_5": 0.0025373101851851845,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "reliability_single": {
+          "mean": 0.4359582617223387,
+          "lower_2_5": 0.0,
+          "median": 0.45271509931446485,
+          "upper_97_5": 0.8832128462998764,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        },
+        "reliability_design": {
+          "mean": 0.6437225960266204,
+          "lower_2_5": 0.0,
+          "median": 0.7284214128920458,
+          "upper_97_5": 0.9711997408743869,
+          "defined_replicates": 2000,
+          "undefined_replicates": 0
+        }
+      }
+    }
+  },
+  "weighting_results": {
+    "primary": {
+      "equal": {
+        "point_estimate": {
+          "weights": {
+            "ConcisenessEvaluator": 0.25,
+            "CoherenceEvaluator": 0.25,
+            "FaithfulnessEvaluator": 0.25,
+            "senior-review-strict": 0.25
+          },
+          "composite_suite_mean": 0.9265000000000001,
+          "composite_replay_median": 0.936375
+        },
+        "bootstrap_mean_estimate": {
+          "method": "mean of defined hierarchical-bootstrap weight vectors",
+          "weights": {
+            "ConcisenessEvaluator": 0.25,
+            "CoherenceEvaluator": 0.25,
+            "FaithfulnessEvaluator": 0.25,
+            "senior-review-strict": 0.25
+          },
+          "composite_suite_mean": 0.9265000000000001,
+          "composite_replay_median": 0.936375
+        },
+        "bootstrap_intervals": {
+          "weights": {
+            "ConcisenessEvaluator": {
+              "mean": 0.25,
+              "lower_2_5": 0.25,
+              "median": 0.25,
+              "upper_97_5": 0.25,
+              "defined_replicates": 2000,
+              "undefined_replicates": 0
+            },
+            "CoherenceEvaluator": {
+              "mean": 0.25,
+              "lower_2_5": 0.25,
+              "median": 0.25,
+              "upper_97_5": 0.25,
+              "defined_replicates": 2000,
+              "undefined_replicates": 0
+            },
+            "FaithfulnessEvaluator": {
+              "mean": 0.25,
+              "lower_2_5": 0.25,
+              "median": 0.25,
+              "upper_97_5": 0.25,
+              "defined_replicates": 2000,
+              "undefined_replicates": 0
+            },
+            "senior-review-strict": {
+              "mean": 0.25,
+              "lower_2_5": 0.25,
+              "median": 0.25,
+              "upper_97_5": 0.25,
+              "defined_replicates": 2000,
+              "undefined_replicates": 0
+            }
+          },
+          "composite_suite_mean": {
+            "mean": 0.9264698333333333,
+            "lower_2_5": 0.899040625,
+            "median": 0.9263750000000001,
+            "upper_97_5": 0.9534166666666667,
+            "defined_replicates": 2000,
+            "undefined_replicates": 0
+          },
+          "composite_replay_median": {
+            "mean": 0.9284813749999999,
+            "lower_2_5": 0.895371875,
+            "median": 0.928625,
+            "upper_97_5": 0.960875,
+            "defined_replicates": 2000,
+            "undefined_replicates": 0
+          }
+        }
+      },
+      "reliability": {
+        "point_estimate": {
+          "weights": {
+            "ConcisenessEvaluator": 0.08325132918163165,
+            "CoherenceEvaluator": 0.0,
+            "FaithfulnessEvaluator": 0.0,
+            "senior-review-strict": 0.9167486708183684
+          },
+          "composite_suite_mean": 0.9294721510328952,
+          "composite_replay_median": 0.9333869316040727
+        },
+        "bootstrap_mean_estimate": {
+          "method": "mean of defined hierarchical-bootstrap weight vectors",
+          "weights": {
+            "ConcisenessEvaluator": 0.3570959710694511,
+            "CoherenceEvaluator": 0.04336293040891311,
+            "FaithfulnessEvaluator": 0.07948545814659524,
+            "senior-review-strict": 0.5200556403750405
+          },
+          "composite_suite_mean": 0.8894272051335915,
+          "composite_replay_median": 0.90023777338567
+        },
+        "bootstrap_intervals": {
+          "weights": {
+            "ConcisenessEvaluator": {
+              "mean": 0.3570959710694511,
+              "lower_2_5": 0.0,
+              "median": 0.35168854875283223,
+              "upper_97_5": 1.0,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "CoherenceEvaluator": {
+              "mean": 0.04336293040891311,
+              "lower_2_5": 0.0,
+              "median": 0.0,
+              "upper_97_5": 0.4217747526146179,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "FaithfulnessEvaluator": {
+              "mean": 0.07948545814659524,
+              "lower_2_5": 0.0,
+              "median": 0.0,
+              "upper_97_5": 0.5011977149120064,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "senior-review-strict": {
+              "mean": 0.5200556403750405,
+              "lower_2_5": 0.0,
+              "median": 0.523078879328615,
+              "upper_97_5": 1.0,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            }
+          },
+          "composite_suite_mean": {
+            "mean": 0.8881463927980413,
+            "lower_2_5": 0.7666666666666667,
+            "median": 0.8932996790625778,
+            "upper_97_5": 0.9586772883814871,
+            "defined_replicates": 1981,
+            "undefined_replicates": 19
+          },
+          "composite_replay_median": {
+            "mean": 0.8905841807683659,
+            "lower_2_5": 0.775,
+            "median": 0.896103157272067,
+            "upper_97_5": 0.9620180221811461,
+            "defined_replicates": 1981,
+            "undefined_replicates": 19
+          }
+        }
+      },
+      "inverse_step": {
+        "point_estimate": {
+          "weights": {
+            "ConcisenessEvaluator": 0.0075107868368929406,
+            "CoherenceEvaluator": 0.0,
+            "FaithfulnessEvaluator": 0.0,
+            "senior-review-strict": 0.992489213163107
+          },
+          "composite_suite_mean": 0.9422344324179835,
+          "composite_replay_median": 0.944407180515232
+        },
+        "bootstrap_mean_estimate": {
+          "method": "mean of defined hierarchical-bootstrap weight vectors",
+          "weights": {
+            "ConcisenessEvaluator": 0.11234094943198275,
+            "CoherenceEvaluator": 0.02249446585143357,
+            "FaithfulnessEvaluator": 0.03713182821218538,
+            "senior-review-strict": 0.8280327565043983
+          },
+          "composite_suite_mean": 0.9275362767924896,
+          "composite_replay_median": 0.9324040248841138
+        },
+        "bootstrap_intervals": {
+          "weights": {
+            "ConcisenessEvaluator": {
+              "mean": 0.11234094943198275,
+              "lower_2_5": 0.0,
+              "median": 0.05572947634330533,
+              "upper_97_5": 1.0,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "CoherenceEvaluator": {
+              "mean": 0.02249446585143357,
+              "lower_2_5": 0.0,
+              "median": 0.0,
+              "upper_97_5": 0.17799789598966198,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "FaithfulnessEvaluator": {
+              "mean": 0.03713182821218538,
+              "lower_2_5": 0.0,
+              "median": 0.0,
+              "upper_97_5": 0.2418294589006329,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "senior-review-strict": {
+              "mean": 0.8280327565043983,
+              "lower_2_5": 0.0,
+              "median": 0.92552977444548,
+              "upper_97_5": 1.0,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            }
+          },
+          "composite_suite_mean": {
+            "mean": 0.9270101016426012,
+            "lower_2_5": 0.7833333333333333,
+            "median": 0.9354573272219201,
+            "upper_97_5": 0.956,
+            "defined_replicates": 1981,
+            "undefined_replicates": 19
+          },
+          "composite_replay_median": {
+            "mean": 0.9280787669203439,
+            "lower_2_5": 0.775,
+            "median": 0.9359866406902309,
+            "upper_97_5": 0.958,
+            "defined_replicates": 1981,
+            "undefined_replicates": 19
+          }
+        }
+      },
+      "inverse_sqrt_step": {
+        "point_estimate": {
+          "weights": {
+            "ConcisenessEvaluator": 0.025545352242788123,
+            "CoherenceEvaluator": 0.0,
+            "FaithfulnessEvaluator": 0.0,
+            "senior-review-strict": 0.9744546477572119
+          },
+          "composite_suite_mean": 0.9391956081470902,
+          "composite_replay_median": 0.9417831512486744
+        },
+        "bootstrap_mean_estimate": {
+          "method": "mean of defined hierarchical-bootstrap weight vectors",
+          "weights": {
+            "ConcisenessEvaluator": 0.19901443859679208,
+            "CoherenceEvaluator": 0.03339257769426366,
+            "FaithfulnessEvaluator": 0.058070340429840044,
+            "senior-review-strict": 0.7095226432791042
+          },
+          "composite_suite_mean": 0.9145106667264776,
+          "composite_replay_median": 0.9215281282219303
+        },
+        "bootstrap_intervals": {
+          "weights": {
+            "ConcisenessEvaluator": {
+              "mean": 0.19901443859679208,
+              "lower_2_5": 0.0,
+              "median": 0.15795044401485436,
+              "upper_97_5": 1.0,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "CoherenceEvaluator": {
+              "mean": 0.03339257769426366,
+              "lower_2_5": 0.0,
+              "median": 0.0,
+              "upper_97_5": 0.30265034652921624,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "FaithfulnessEvaluator": {
+              "mean": 0.058070340429840044,
+              "lower_2_5": 0.0,
+              "median": 0.0,
+              "upper_97_5": 0.36496583745234434,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "senior-review-strict": {
+              "mean": 0.7095226432791042,
+              "lower_2_5": 0.0,
+              "median": 0.786754635335206,
+              "upper_97_5": 1.0,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            }
+          },
+          "composite_suite_mean": {
+            "mean": 0.9136336217613069,
+            "lower_2_5": 0.775,
+            "median": 0.9213333333333333,
+            "upper_97_5": 0.9553340980843783,
+            "defined_replicates": 1981,
+            "undefined_replicates": 19
+          },
+          "composite_replay_median": {
+            "mean": 0.9152154410045984,
+            "lower_2_5": 0.775,
+            "median": 0.923167638632622,
+            "upper_97_5": 0.9579365316155839,
+            "defined_replicates": 1981,
+            "undefined_replicates": 19
+          }
+        }
+      }
+    },
+    "all": {
+      "equal": {
+        "point_estimate": {
+          "weights": {
+            "ConcisenessEvaluator": 0.25,
+            "CoherenceEvaluator": 0.25,
+            "FaithfulnessEvaluator": 0.25,
+            "senior-review-strict": 0.25
+          },
+          "composite_suite_mean": 0.9265000000000001,
+          "composite_replay_median": 0.936375
+        },
+        "bootstrap_mean_estimate": {
+          "method": "mean of defined hierarchical-bootstrap weight vectors",
+          "weights": {
+            "ConcisenessEvaluator": 0.25,
+            "CoherenceEvaluator": 0.25,
+            "FaithfulnessEvaluator": 0.25,
+            "senior-review-strict": 0.25
+          },
+          "composite_suite_mean": 0.9265000000000001,
+          "composite_replay_median": 0.936375
+        },
+        "bootstrap_intervals": {
+          "weights": {
+            "ConcisenessEvaluator": {
+              "mean": 0.25,
+              "lower_2_5": 0.25,
+              "median": 0.25,
+              "upper_97_5": 0.25,
+              "defined_replicates": 2000,
+              "undefined_replicates": 0
+            },
+            "CoherenceEvaluator": {
+              "mean": 0.25,
+              "lower_2_5": 0.25,
+              "median": 0.25,
+              "upper_97_5": 0.25,
+              "defined_replicates": 2000,
+              "undefined_replicates": 0
+            },
+            "FaithfulnessEvaluator": {
+              "mean": 0.25,
+              "lower_2_5": 0.25,
+              "median": 0.25,
+              "upper_97_5": 0.25,
+              "defined_replicates": 2000,
+              "undefined_replicates": 0
+            },
+            "senior-review-strict": {
+              "mean": 0.25,
+              "lower_2_5": 0.25,
+              "median": 0.25,
+              "upper_97_5": 0.25,
+              "defined_replicates": 2000,
+              "undefined_replicates": 0
+            }
+          },
+          "composite_suite_mean": {
+            "mean": 0.9264698333333333,
+            "lower_2_5": 0.899040625,
+            "median": 0.9263750000000001,
+            "upper_97_5": 0.9534166666666667,
+            "defined_replicates": 2000,
+            "undefined_replicates": 0
+          },
+          "composite_replay_median": {
+            "mean": 0.9284813749999999,
+            "lower_2_5": 0.895371875,
+            "median": 0.928625,
+            "upper_97_5": 0.960875,
+            "defined_replicates": 2000,
+            "undefined_replicates": 0
+          }
+        }
+      },
+      "reliability": {
+        "point_estimate": {
+          "weights": {
+            "ConcisenessEvaluator": 0.08325132918163165,
+            "CoherenceEvaluator": 0.0,
+            "FaithfulnessEvaluator": 0.0,
+            "senior-review-strict": 0.9167486708183684
+          },
+          "composite_suite_mean": 0.9294721510328952,
+          "composite_replay_median": 0.9333869316040727
+        },
+        "bootstrap_mean_estimate": {
+          "method": "mean of defined hierarchical-bootstrap weight vectors",
+          "weights": {
+            "ConcisenessEvaluator": 0.3570959710694511,
+            "CoherenceEvaluator": 0.04336293040891311,
+            "FaithfulnessEvaluator": 0.07948545814659524,
+            "senior-review-strict": 0.5200556403750405
+          },
+          "composite_suite_mean": 0.8894272051335915,
+          "composite_replay_median": 0.90023777338567
+        },
+        "bootstrap_intervals": {
+          "weights": {
+            "ConcisenessEvaluator": {
+              "mean": 0.3570959710694511,
+              "lower_2_5": 0.0,
+              "median": 0.35168854875283223,
+              "upper_97_5": 1.0,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "CoherenceEvaluator": {
+              "mean": 0.04336293040891311,
+              "lower_2_5": 0.0,
+              "median": 0.0,
+              "upper_97_5": 0.4217747526146179,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "FaithfulnessEvaluator": {
+              "mean": 0.07948545814659524,
+              "lower_2_5": 0.0,
+              "median": 0.0,
+              "upper_97_5": 0.5011977149120064,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "senior-review-strict": {
+              "mean": 0.5200556403750405,
+              "lower_2_5": 0.0,
+              "median": 0.523078879328615,
+              "upper_97_5": 1.0,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            }
+          },
+          "composite_suite_mean": {
+            "mean": 0.8881463927980413,
+            "lower_2_5": 0.7666666666666667,
+            "median": 0.8932996790625778,
+            "upper_97_5": 0.9586772883814871,
+            "defined_replicates": 1981,
+            "undefined_replicates": 19
+          },
+          "composite_replay_median": {
+            "mean": 0.8905841807683659,
+            "lower_2_5": 0.775,
+            "median": 0.896103157272067,
+            "upper_97_5": 0.9620180221811461,
+            "defined_replicates": 1981,
+            "undefined_replicates": 19
+          }
+        }
+      },
+      "inverse_step": {
+        "point_estimate": {
+          "weights": {
+            "ConcisenessEvaluator": 0.0075107868368929406,
+            "CoherenceEvaluator": 0.0,
+            "FaithfulnessEvaluator": 0.0,
+            "senior-review-strict": 0.992489213163107
+          },
+          "composite_suite_mean": 0.9422344324179835,
+          "composite_replay_median": 0.944407180515232
+        },
+        "bootstrap_mean_estimate": {
+          "method": "mean of defined hierarchical-bootstrap weight vectors",
+          "weights": {
+            "ConcisenessEvaluator": 0.11234094943198275,
+            "CoherenceEvaluator": 0.02249446585143357,
+            "FaithfulnessEvaluator": 0.03713182821218538,
+            "senior-review-strict": 0.8280327565043983
+          },
+          "composite_suite_mean": 0.9275362767924896,
+          "composite_replay_median": 0.9324040248841138
+        },
+        "bootstrap_intervals": {
+          "weights": {
+            "ConcisenessEvaluator": {
+              "mean": 0.11234094943198275,
+              "lower_2_5": 0.0,
+              "median": 0.05572947634330533,
+              "upper_97_5": 1.0,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "CoherenceEvaluator": {
+              "mean": 0.02249446585143357,
+              "lower_2_5": 0.0,
+              "median": 0.0,
+              "upper_97_5": 0.17799789598966198,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "FaithfulnessEvaluator": {
+              "mean": 0.03713182821218538,
+              "lower_2_5": 0.0,
+              "median": 0.0,
+              "upper_97_5": 0.2418294589006329,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "senior-review-strict": {
+              "mean": 0.8280327565043983,
+              "lower_2_5": 0.0,
+              "median": 0.92552977444548,
+              "upper_97_5": 1.0,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            }
+          },
+          "composite_suite_mean": {
+            "mean": 0.9270101016426012,
+            "lower_2_5": 0.7833333333333333,
+            "median": 0.9354573272219201,
+            "upper_97_5": 0.956,
+            "defined_replicates": 1981,
+            "undefined_replicates": 19
+          },
+          "composite_replay_median": {
+            "mean": 0.9280787669203439,
+            "lower_2_5": 0.775,
+            "median": 0.9359866406902309,
+            "upper_97_5": 0.958,
+            "defined_replicates": 1981,
+            "undefined_replicates": 19
+          }
+        }
+      },
+      "inverse_sqrt_step": {
+        "point_estimate": {
+          "weights": {
+            "ConcisenessEvaluator": 0.025545352242788123,
+            "CoherenceEvaluator": 0.0,
+            "FaithfulnessEvaluator": 0.0,
+            "senior-review-strict": 0.9744546477572119
+          },
+          "composite_suite_mean": 0.9391956081470902,
+          "composite_replay_median": 0.9417831512486744
+        },
+        "bootstrap_mean_estimate": {
+          "method": "mean of defined hierarchical-bootstrap weight vectors",
+          "weights": {
+            "ConcisenessEvaluator": 0.19901443859679208,
+            "CoherenceEvaluator": 0.03339257769426366,
+            "FaithfulnessEvaluator": 0.058070340429840044,
+            "senior-review-strict": 0.7095226432791042
+          },
+          "composite_suite_mean": 0.9145106667264776,
+          "composite_replay_median": 0.9215281282219303
+        },
+        "bootstrap_intervals": {
+          "weights": {
+            "ConcisenessEvaluator": {
+              "mean": 0.19901443859679208,
+              "lower_2_5": 0.0,
+              "median": 0.15795044401485436,
+              "upper_97_5": 1.0,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "CoherenceEvaluator": {
+              "mean": 0.03339257769426366,
+              "lower_2_5": 0.0,
+              "median": 0.0,
+              "upper_97_5": 0.30265034652921624,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "FaithfulnessEvaluator": {
+              "mean": 0.058070340429840044,
+              "lower_2_5": 0.0,
+              "median": 0.0,
+              "upper_97_5": 0.36496583745234434,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            },
+            "senior-review-strict": {
+              "mean": 0.7095226432791042,
+              "lower_2_5": 0.0,
+              "median": 0.786754635335206,
+              "upper_97_5": 1.0,
+              "defined_replicates": 1981,
+              "undefined_replicates": 19
+            }
+          },
+          "composite_suite_mean": {
+            "mean": 0.9136336217613069,
+            "lower_2_5": 0.775,
+            "median": 0.9213333333333333,
+            "upper_97_5": 0.9553340980843783,
+            "defined_replicates": 1981,
+            "undefined_replicates": 19
+          },
+          "composite_replay_median": {
+            "mean": 0.9152154410045984,
+            "lower_2_5": 0.775,
+            "median": 0.923167638632622,
+            "upper_97_5": 0.9579365316155839,
+            "defined_replicates": 1981,
+            "undefined_replicates": 19
+          }
+        }
+      }
+    }
+  },
+  "provisional_weighting": {
+    "evaluator_set": "primary",
+    "scheme": "inverse_sqrt_step",
+    "estimate": "bootstrap_mean",
+    "weights": {
+      "ConcisenessEvaluator": 0.19901443859679208,
+      "CoherenceEvaluator": 0.03339257769426366,
+      "FaithfulnessEvaluator": 0.058070340429840044,
+      "senior-review-strict": 0.7095226432791042
+    },
+    "composite_suite_mean": 0.9145106667264776,
+    "composite_replay_median": 0.9215281282219303
+  },
+  "included_only_anchor": {
+    "evaluator": "senior-review-strict",
+    "suite_mean": 0.9435,
+    "suite_replay_median": 0.9455,
+    "bootstrap_suite_mean": {
+      "mean": 0.9433897499999999,
+      "lower_2_5": 0.9213333333333333,
+      "median": 0.9441666666666666,
+      "upper_97_5": 0.96,
+      "defined_replicates": 2000,
+      "undefined_replicates": 0
+    },
+    "bootstrap_replay_median": {
+      "mean": 0.94368175,
+      "lower_2_5": 0.9205,
+      "median": 0.944,
+      "upper_97_5": 0.96,
+      "defined_replicates": 2000,
+      "undefined_replicates": 0
+    }
+  },
+  "milestone_decision": {
+    "basic_pipeline_sound_enough_to_continue": true,
+    "provisional_weighting_selected": true,
+    "weighting_rule_ready_to_finalize": false,
+    "recommendation": "Carry the bootstrap-mean inverse-sqrt-step weights forward as the provisional Milestone 1 result, then validate them on additional datasets.",
+    "evidence": [
+      "All source, registry, estimator, and output validations pass.",
+      "The raw plug-in estimate is boundary-sensitive because two evaluators have no detectable corrected case signal in this sample.",
+      "Averaging jointly normalized bootstrap weight vectors preserves uncertainty instead of treating boundary estimates as certain zeros.",
+      "The stabilized senior-review-strict weight is 71.0%.",
+      "Bootstrap weight intervals span most or all of the zero-to-one range.",
+      "19 of 2000 reliability-based bootstrap replicates are undefined and excluded from the bootstrap mean."
+    ]
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "dataset_id": "stan-issue-run-level-evaluator-replays-v1",
+  "schema_version": 1,
+  "frozen_at": "2026-09-29",
+  "source": {
+    "original_path": "/Users/leyhuang/Downloads/Dataset",
+    "canonical_report": "source/issue_broad_report.json",
+    "checksums": "checksums.sha256",
+    "file_count": 36,
+    "total_bytes": 832420
+  },
+  "dimensions": {
+    "tasks": 10,
+    "runs_per_task": 2,
+    "runs": 20,
+    "replays_per_run": 3,
+    "evaluators": 4,
+    "score_rows": 240
+  },
+  "evaluators": [
+    "CoherenceEvaluator",
+    "ConcisenessEvaluator",
+    "FaithfulnessEvaluator",
+    "senior-review-strict"
+  ],
+  "scoring_configuration": {
+    "replay_field_in_source": "trial",
+    "max_workers": 5,
+    "max_diff_chars": 40000,
+    "aws_region": "us-west-2"
+  },
+  "provenance": {
+    "harness_sdk_commit": "803a4d6f906ce940fb769a53a1fc59efacd4dd37",
+    "strands_agents_version": "1.55.1",
+    "strands_evals_version": null,
+    "judge_model": null
+  },
+  "rubrics": {
+    "senior-review-strict": {
+      "source": "source/stan_issue_eval_broad.py",
+      "sha256": "0dc7f14b7e235829208d61f6a9c712545170707be87108034fb7fbabac8c3b42",
+      "utf8_bytes": 1887
+    }
+  },
+  "snapshot_scope": {
+    "includes_score_report": true,
+    "includes_run_manifests": true,
+    "includes_task_prompts": true,
+    "includes_evaluator_scripts": true,
+    "includes_session_traces": false
+  },
+  "known_limitations": [
+    "The exact strands-evals version was not recorded.",
+    "The default judge model and model parameters were not recorded.",
+    "Session traces are omitted from this lightweight snapshot.",
+    "The dataset has only 10 tasks and two runs per task.",
+    "Scores are concentrated near the top of the scale."
+  ]
+}
