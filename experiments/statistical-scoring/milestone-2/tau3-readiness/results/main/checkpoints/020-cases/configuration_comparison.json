@@ -1,0 +1,620 @@
+{
+  "experiment_id": "tau3-calibration-readiness-v1",
+  "stage": "main",
+  "status": "planned_grid_available",
+  "complete_case_count": 20,
+  "complete_cases": [
+    "tau3-airline-13",
+    "tau3-airline-2",
+    "tau3-airline-23",
+    "tau3-airline-27",
+    "tau3-airline-36",
+    "tau3-banking_knowledge-task-007",
+    "tau3-banking_knowledge-task-045",
+    "tau3-banking_knowledge-task-076",
+    "tau3-banking_knowledge-task-083",
+    "tau3-banking_knowledge-task-096",
+    "tau3-retail-29",
+    "tau3-retail-38",
+    "tau3-retail-49",
+    "tau3-retail-7",
+    "tau3-retail-81",
+    "tau3-telecom-mms-issue-airplane-mode-on-bad-network-preference-bad-wifi-calling-break-apn-mms-setting-break-app-both-permissions-unseat-sim-card-user-abroad-roaming-enabled-off-persona-hard",
+    "tau3-telecom-mms-issue-airplane-mode-on-bad-network-preference-bad-wifi-calling-break-apn-mms-setting-break-app-storage-permission-data-mode-off-data-usage-exceeded-unseat-sim-card-persona-easy",
+    "tau3-telecom-mms-issue-airplane-mode-on-bad-network-preference-break-apn-mms-setting-data-mode-off-unseat-sim-card-user-abroad-roaming-disabled-off-persona-easy",
+    "tau3-telecom-service-issue-airplane-mode-on-break-apn-settings-overdue-bill-suspension-persona-none",
+    "tau3-telecom-service-issue-break-apn-settings-lock-sim-card-pin-persona-none"
+  ],
+  "available_design": {
+    "agent_runs": 3,
+    "judge_replays": 3
+  },
+  "weighting_method": "inverse_sqrt_step",
+  "bootstrap_replicates": 500,
+  "requested_subsamples": 100,
+  "thresholds": {
+    "minimum_defined_bootstrap_fraction": 0.95,
+    "maximum_composite_interval_width": 0.1,
+    "maximum_weight_interval_width": 0.25,
+    "minimum_held_out_correlation_delta": -0.05
+  },
+  "reference": {
+    "case_count": 20,
+    "agent_runs": 3,
+    "judge_replays": 3,
+    "weights": {
+      "GoalSuccessRateEvaluator": 0.2144928379422922,
+      "HelpfulnessEvaluator": 0.6829355003927883,
+      "InstructionFollowingEvaluator": 0.10257166166491952
+    },
+    "score": 0.872722935848326,
+    "reliabilities": {
+      "GoalSuccessRateEvaluator": 0.6624365482233502,
+      "HelpfulnessEvaluator": 0.8593403867488179,
+      "InstructionFollowingEvaluator": 0.3167808219178085
+    },
+    "variance_components": {
+      "GoalSuccessRateEvaluator": {
+        "judge": 0.07222222222222223,
+        "agent": 0.02777777777777778,
+        "case": 0.03391812865497076
+      },
+      "HelpfulnessEvaluator": {
+        "judge": 0.011583366666666668,
+        "agent": 0.0031328370370370356,
+        "case": 0.014242874496426248
+      },
+      "InstructionFollowingEvaluator": {
+        "judge": 0.055555555555555566,
+        "agent": 0.02037037037037037,
+        "case": 0.006010396361273563
+      }
+    },
+    "held_out": {
+      "run_count": 60,
+      "native_reward_mean": 0.48333333333333334,
+      "equal_weight_correlation": 0.16088607205981506,
+      "learned_weight_correlation": 0.04939253963146325,
+      "correlation_delta": -0.1114935324283518
+    }
+  },
+  "comparisons": [
+    {
+      "case_count": 12,
+      "agent_runs": 2,
+      "judge_replays": 2,
+      "subsamples": 100,
+      "calibrated_fraction": 1.0,
+      "readiness_fraction": 0.0,
+      "defined_bootstrap_fraction": {
+        "mean": 0.99618,
+        "lower_2_5": 0.972,
+        "median": 1.0,
+        "upper_97_5": 1.0
+      },
+      "maximum_weight_interval_width": {
+        "mean": 0.6530414831722396,
+        "lower_2_5": 0.39441882411875734,
+        "median": 0.5622215894419408,
+        "upper_97_5": 1.0
+      },
+      "composite_interval_width": {
+        "mean": 0.15402941045327392,
+        "lower_2_5": 0.11633518849124816,
+        "median": 0.15475125099869336,
+        "upper_97_5": 0.1868794302131615
+      },
+      "maximum_absolute_weight_drift": {
+        "mean": 0.18317484356059158,
+        "lower_2_5": 0.07850708447566317,
+        "median": 0.15056529840044136,
+        "upper_97_5": 0.3541227564660293
+      },
+      "composite_score_drift": {
+        "mean": 0.022622790031994154,
+        "lower_2_5": 0.0009345468788159117,
+        "median": 0.018577894637086922,
+        "upper_97_5": 0.059128264979392754
+      },
+      "held_out_equal_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.1519868938033014,
+        "lower_2_5": -0.2035922400771905,
+        "median": 0.1503828570795887,
+        "upper_97_5": 0.4677222513689562
+      },
+      "held_out_learned_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.0195908094571754,
+        "lower_2_5": -0.31058400210418624,
+        "median": 0.0309731506783946,
+        "upper_97_5": 0.3583899138091631
+      },
+      "held_out_correlation_delta": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": -0.13239608434612601,
+        "lower_2_5": -0.3560724630212215,
+        "median": -0.1241025818373966,
+        "upper_97_5": 0.06922028359978581
+      },
+      "mean_weights": {
+        "GoalSuccessRateEvaluator": 0.18475885086619293,
+        "HelpfulnessEvaluator": 0.7669556988693529,
+        "InstructionFollowingEvaluator": 0.04828545026445414
+      }
+    },
+    {
+      "case_count": 12,
+      "agent_runs": 2,
+      "judge_replays": 3,
+      "subsamples": 100,
+      "calibrated_fraction": 1.0,
+      "readiness_fraction": 0.0,
+      "defined_bootstrap_fraction": {
+        "mean": 0.9979399999999999,
+        "lower_2_5": 0.99095,
+        "median": 1.0,
+        "upper_97_5": 1.0
+      },
+      "maximum_weight_interval_width": {
+        "mean": 0.6700787266578253,
+        "lower_2_5": 0.42098760603200264,
+        "median": 0.6316002424938483,
+        "upper_97_5": 1.0
+      },
+      "composite_interval_width": {
+        "mean": 0.1448952580165828,
+        "lower_2_5": 0.11124774167143316,
+        "median": 0.14679770122316083,
+        "upper_97_5": 0.18121809788128612
+      },
+      "maximum_absolute_weight_drift": {
+        "mean": 0.15035151973589994,
+        "lower_2_5": 0.03889838255559784,
+        "median": 0.12765832566840807,
+        "upper_97_5": 0.3170644996072117
+      },
+      "composite_score_drift": {
+        "mean": 0.01915639512047117,
+        "lower_2_5": 0.0005902152445048464,
+        "median": 0.015062841215393086,
+        "upper_97_5": 0.051364755146311475
+      },
+      "held_out_equal_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.1669739959143996,
+        "lower_2_5": -0.19513003440694807,
+        "median": 0.19538196803542535,
+        "upper_97_5": 0.4547139183046271
+      },
+      "held_out_learned_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.0460685928123416,
+        "lower_2_5": -0.3275565201351965,
+        "median": 0.07606333514826558,
+        "upper_97_5": 0.39131208644145915
+      },
+      "held_out_correlation_delta": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": -0.120905403102058,
+        "lower_2_5": -0.3079780962170531,
+        "median": -0.11741662891561672,
+        "upper_97_5": 0.042836742462258215
+      },
+      "mean_weights": {
+        "GoalSuccessRateEvaluator": 0.17416877201313746,
+        "HelpfulnessEvaluator": 0.7391671940434008,
+        "InstructionFollowingEvaluator": 0.08666403394346174
+      }
+    },
+    {
+      "case_count": 12,
+      "agent_runs": 3,
+      "judge_replays": 2,
+      "subsamples": 100,
+      "calibrated_fraction": 1.0,
+      "readiness_fraction": 0.0,
+      "defined_bootstrap_fraction": {
+        "mean": 0.9994,
+        "lower_2_5": 0.996,
+        "median": 1.0,
+        "upper_97_5": 1.0
+      },
+      "maximum_weight_interval_width": {
+        "mean": 0.5602976412561143,
+        "lower_2_5": 0.38650258780183233,
+        "median": 0.5299714176303376,
+        "upper_97_5": 0.9341370366870113
+      },
+      "composite_interval_width": {
+        "mean": 0.13763587845141298,
+        "lower_2_5": 0.11213307859110787,
+        "median": 0.13884317003140534,
+        "upper_97_5": 0.1623256817142717
+      },
+      "maximum_absolute_weight_drift": {
+        "mean": 0.09796572458978414,
+        "lower_2_5": 0.013256500684868349,
+        "median": 0.09943510627953128,
+        "upper_97_5": 0.26271945147426456
+      },
+      "composite_score_drift": {
+        "mean": 0.015963366374683832,
+        "lower_2_5": 0.00023584834954638035,
+        "median": 0.015171945089452965,
+        "upper_97_5": 0.04394814025952246
+      },
+      "held_out_equal_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.15327257024572152,
+        "lower_2_5": -0.13650505498519813,
+        "median": 0.15755404075963406,
+        "upper_97_5": 0.42536679992644805
+      },
+      "held_out_learned_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.049985493013956106,
+        "lower_2_5": -0.2798480271376308,
+        "median": 0.05973314205159519,
+        "upper_97_5": 0.34690158993426623
+      },
+      "held_out_correlation_delta": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": -0.10328707723176545,
+        "lower_2_5": -0.2691494369156598,
+        "median": -0.10862096489908649,
+        "upper_97_5": 0.06442545741789969
+      },
+      "mean_weights": {
+        "GoalSuccessRateEvaluator": 0.19118553736871519,
+        "HelpfulnessEvaluator": 0.7365037085065248,
+        "InstructionFollowingEvaluator": 0.07231075412476001
+      }
+    },
+    {
+      "case_count": 12,
+      "agent_runs": 3,
+      "judge_replays": 3,
+      "subsamples": 100,
+      "calibrated_fraction": 1.0,
+      "readiness_fraction": 0.0,
+      "defined_bootstrap_fraction": {
+        "mean": 0.99942,
+        "lower_2_5": 0.994,
+        "median": 1.0,
+        "upper_97_5": 1.0
+      },
+      "maximum_weight_interval_width": {
+        "mean": 0.5434886663514206,
+        "lower_2_5": 0.332894164795308,
+        "median": 0.5058493263157914,
+        "upper_97_5": 0.9631072691122786
+      },
+      "composite_interval_width": {
+        "mean": 0.1265970923033117,
+        "lower_2_5": 0.10374090946253492,
+        "median": 0.12809196258907135,
+        "upper_97_5": 0.14959453982638946
+      },
+      "maximum_absolute_weight_drift": {
+        "mean": 0.0705859010178227,
+        "lower_2_5": 0.015937468201601447,
+        "median": 0.058007780543278126,
+        "upper_97_5": 0.20051490219085175
+      },
+      "composite_score_drift": {
+        "mean": 0.014907409201312458,
+        "lower_2_5": 0.000820181028392869,
+        "median": 0.013055911588113811,
+        "upper_97_5": 0.04124234954618134
+      },
+      "held_out_equal_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.19335024975738407,
+        "lower_2_5": -0.06587324332336794,
+        "median": 0.19807688743015123,
+        "upper_97_5": 0.46910401049277894
+      },
+      "held_out_learned_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.07000994277403949,
+        "lower_2_5": -0.2660353691534148,
+        "median": 0.08123775194171035,
+        "upper_97_5": 0.35971810522055836
+      },
+      "held_out_correlation_delta": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": -0.12334030698334456,
+        "lower_2_5": -0.29217677554623267,
+        "median": -0.11086194724920645,
+        "upper_97_5": 0.009645448879165405
+      },
+      "mean_weights": {
+        "GoalSuccessRateEvaluator": 0.19399943415583934,
+        "HelpfulnessEvaluator": 0.6992422840064542,
+        "InstructionFollowingEvaluator": 0.10675828183770643
+      }
+    },
+    {
+      "case_count": 20,
+      "agent_runs": 2,
+      "judge_replays": 2,
+      "subsamples": 100,
+      "calibrated_fraction": 1.0,
+      "readiness_fraction": 0.0,
+      "defined_bootstrap_fraction": {
+        "mean": 0.9998999999999999,
+        "lower_2_5": 0.998,
+        "median": 1.0,
+        "upper_97_5": 1.0
+      },
+      "maximum_weight_interval_width": {
+        "mean": 0.5210484026432437,
+        "lower_2_5": 0.3277397217886474,
+        "median": 0.4968984789854235,
+        "upper_97_5": 0.7932888603516853
+      },
+      "composite_interval_width": {
+        "mean": 0.11131078071498215,
+        "lower_2_5": 0.09628017927194872,
+        "median": 0.11145977178732214,
+        "upper_97_5": 0.12602453919264603
+      },
+      "maximum_absolute_weight_drift": {
+        "mean": 0.15939220469311016,
+        "lower_2_5": 0.08559275299084396,
+        "median": 0.12545646117802137,
+        "upper_97_5": 0.26476071774071697
+      },
+      "composite_score_drift": {
+        "mean": 0.013509430327024133,
+        "lower_2_5": 0.0006522006855704809,
+        "median": 0.015073071040249464,
+        "upper_97_5": 0.023346039213984038
+      },
+      "held_out_equal_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.14514906968328936,
+        "lower_2_5": 0.04786738833552143,
+        "median": 0.16057799390442512,
+        "upper_97_5": 0.2750611436641215
+      },
+      "held_out_learned_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.011978514830160564,
+        "lower_2_5": -0.08690521399315441,
+        "median": 0.008486038543732314,
+        "upper_97_5": 0.20085045576603475
+      },
+      "held_out_correlation_delta": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": -0.1331705548531288,
+        "lower_2_5": -0.18648871782673898,
+        "median": -0.13352071492548281,
+        "upper_97_5": -0.07421068789808674
+      },
+      "mean_weights": {
+        "GoalSuccessRateEvaluator": 0.17330590375696642,
+        "HelpfulnessEvaluator": 0.7685706490222327,
+        "InstructionFollowingEvaluator": 0.05812344722080089
+      }
+    },
+    {
+      "case_count": 20,
+      "agent_runs": 2,
+      "judge_replays": 3,
+      "subsamples": 100,
+      "calibrated_fraction": 1.0,
+      "readiness_fraction": 0.0,
+      "defined_bootstrap_fraction": {
+        "mean": 0.99992,
+        "lower_2_5": 0.998,
+        "median": 1.0,
+        "upper_97_5": 1.0
+      },
+      "maximum_weight_interval_width": {
+        "mean": 0.4604229153139778,
+        "lower_2_5": 0.31663251944603793,
+        "median": 0.4425187896553714,
+        "upper_97_5": 0.6451894932853691
+      },
+      "composite_interval_width": {
+        "mean": 0.10518149118846803,
+        "lower_2_5": 0.09341652087895534,
+        "median": 0.10396613306643138,
+        "upper_97_5": 0.1182196254870046
+      },
+      "maximum_absolute_weight_drift": {
+        "mean": 0.12927561696439283,
+        "lower_2_5": 0.10257166166491952,
+        "median": 0.10257166166491952,
+        "upper_97_5": 0.17284522824248083
+      },
+      "composite_score_drift": {
+        "mean": 0.013412948870718875,
+        "lower_2_5": 0.0022836886190054084,
+        "median": 0.016592140544270828,
+        "upper_97_5": 0.020071340244357305
+      },
+      "held_out_equal_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.1494295765365564,
+        "lower_2_5": 0.06178436423079824,
+        "median": 0.1906044314852396,
+        "upper_97_5": 0.21652700017858797
+      },
+      "held_out_learned_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.016139896473663543,
+        "lower_2_5": -0.03973293611244914,
+        "median": 0.01994807453968625,
+        "upper_97_5": 0.08285009447898205
+      },
+      "held_out_correlation_delta": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": -0.13328968006289285,
+        "lower_2_5": -0.17065635694555334,
+        "median": -0.13367690569960594,
+        "upper_97_5": -0.10151730034324738
+      },
+      "mean_weights": {
+        "GoalSuccessRateEvaluator": 0.1723176102857276,
+        "HelpfulnessEvaluator": 0.7357772582799526,
+        "InstructionFollowingEvaluator": 0.09190513143431983
+      }
+    },
+    {
+      "case_count": 20,
+      "agent_runs": 3,
+      "judge_replays": 2,
+      "subsamples": 100,
+      "calibrated_fraction": 1.0,
+      "readiness_fraction": 0.0,
+      "defined_bootstrap_fraction": {
+        "mean": 1.0,
+        "lower_2_5": 1.0,
+        "median": 1.0,
+        "upper_97_5": 1.0
+      },
+      "maximum_weight_interval_width": {
+        "mean": 0.3502059002931992,
+        "lower_2_5": 0.30827492631119524,
+        "median": 0.34418694236881764,
+        "upper_97_5": 0.4117742956323204
+      },
+      "composite_interval_width": {
+        "mean": 0.10126109475604955,
+        "lower_2_5": 0.09072045029612126,
+        "median": 0.10076000062302265,
+        "upper_97_5": 0.11218936336677263
+      },
+      "maximum_absolute_weight_drift": {
+        "mean": 0.03592967232136109,
+        "lower_2_5": 0.0077678762735977624,
+        "median": 0.014892248473893477,
+        "upper_97_5": 0.10257166166491952
+      },
+      "composite_score_drift": {
+        "mean": 0.0032659898140658906,
+        "lower_2_5": 0.0006160232851514236,
+        "median": 0.0025157959445158973,
+        "upper_97_5": 0.00592966753256563
+      },
+      "held_out_equal_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.15215996858557593,
+        "lower_2_5": 0.14446206723987606,
+        "median": 0.1445323183162119,
+        "upper_97_5": 0.16521594171309012
+      },
+      "held_out_learned_weight_correlation": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": 0.03830248551406084,
+        "lower_2_5": 0.01017995558089965,
+        "median": 0.031831456535896474,
+        "upper_97_5": 0.06512046798458163
+      },
+      "held_out_correlation_delta": {
+        "defined": 100,
+        "defined_fraction": 1.0,
+        "mean": -0.11385748307151511,
+        "lower_2_5": -0.13435236273531226,
+        "median": -0.11263061070397959,
+        "upper_97_5": -0.1000954737285085
+      },
+      "mean_weights": {
+        "GoalSuccessRateEvaluator": 0.21432474433513968,
+        "HelpfulnessEvaluator": 0.7066459542449641,
+        "InstructionFollowingEvaluator": 0.07902930141989609
+      }
+    },
+    {
+      "case_count": 20,
+      "agent_runs": 3,
+      "judge_replays": 3,
+      "subsamples": 1,
+      "calibrated_fraction": 1.0,
+      "readiness_fraction": 0.0,
+      "defined_bootstrap_fraction": {
+        "mean": 1.0,
+        "lower_2_5": 1.0,
+        "median": 1.0,
+        "upper_97_5": 1.0
+      },
+      "maximum_weight_interval_width": {
+        "mean": 0.30781666877330405,
+        "lower_2_5": 0.30781666877330405,
+        "median": 0.30781666877330405,
+        "upper_97_5": 0.30781666877330405
+      },
+      "composite_interval_width": {
+        "mean": 0.0943430767149891,
+        "lower_2_5": 0.0943430767149891,
+        "median": 0.0943430767149891,
+        "upper_97_5": 0.0943430767149891
+      },
+      "maximum_absolute_weight_drift": {
+        "mean": 0.0,
+        "lower_2_5": 0.0,
+        "median": 0.0,
+        "upper_97_5": 0.0
+      },
+      "composite_score_drift": {
+        "mean": 0.0,
+        "lower_2_5": 0.0,
+        "median": 0.0,
+        "upper_97_5": 0.0
+      },
+      "held_out_equal_weight_correlation": {
+        "defined": 1,
+        "defined_fraction": 1.0,
+        "mean": 0.16088607205981506,
+        "lower_2_5": 0.16088607205981506,
+        "median": 0.16088607205981506,
+        "upper_97_5": 0.16088607205981506
+      },
+      "held_out_learned_weight_correlation": {
+        "defined": 1,
+        "defined_fraction": 1.0,
+        "mean": 0.04939253963146325,
+        "lower_2_5": 0.04939253963146325,
+        "median": 0.04939253963146325,
+        "upper_97_5": 0.04939253963146325
+      },
+      "held_out_correlation_delta": {
+        "defined": 1,
+        "defined_fraction": 1.0,
+        "mean": -0.1114935324283518,
+        "lower_2_5": -0.1114935324283518,
+        "median": -0.1114935324283518,
+        "upper_97_5": -0.1114935324283518
+      },
+      "mean_weights": {
+        "GoalSuccessRateEvaluator": 0.2144928379422922,
+        "HelpfulnessEvaluator": 0.6829355003927883,
+        "InstructionFollowingEvaluator": 0.10257166166491952
+      }
+    }
+  ],
+  "provisional_smallest_ready_design": null
+}

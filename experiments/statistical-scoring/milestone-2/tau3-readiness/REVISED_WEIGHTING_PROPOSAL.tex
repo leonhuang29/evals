@@ -1,0 +1,842 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage[hidelinks]{hyperref}
+
+\title{Revised Statistical Calibration for Evaluator-Based Scoring}
+\author{Statistical Evals Project}
+\date{October 21, 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+The initial statistical calibration method successfully measured evaluator
+noise and produced more stable composite scores. However, the Tau3 experiment
+showed that statistical reliability is not the same as semantic relevance.
+The learned score was more repeatable than an equal-weight score, but it was
+less aligned with Tau3's native task-success reward. This document proposes a
+revised framework that separates measurement uncertainty from evaluator
+importance, learns target-specific weights when labels are available, and
+treats customer-declared priorities as the primary definition of a
+multi-dimensional quality score. The revised framework may also substantially
+reduce the number of agent executions and evaluator calls required from
+customers.
+\end{abstract}
+
+\section{Background}
+
+An evaluation report contains scores from multiple evaluators. These
+evaluators may differ in:
+
+\begin{itemize}
+    \item judge replay noise;
+    \item score granularity;
+    \item sensitivity to different cases and agent outputs; and
+    \item semantic relevance to the customer's actual objective.
+\end{itemize}
+
+The initial project attempted to replace an equal-weight average with a
+reliability-weighted composite. For evaluator \(e\), the provisional
+reliability was:
+
+\begin{equation}
+r_e =
+\frac{v_{c,e}}
+     {v_{c,e} + v_{a,e} + v_{j,e}/k},
+\end{equation}
+
+where:
+
+\begin{itemize}
+    \item \(v_{c,e}\) is variance across cases;
+    \item \(v_{a,e}\) is variance across agent runs of the same case;
+    \item \(v_{j,e}\) is variance across judge replays of a fixed run; and
+    \item \(k\) is the number of judge replays.
+\end{itemize}
+
+The active weighting rule was:
+
+\begin{equation}
+w_e =
+\frac{r_e / \sqrt{\mathrm{step}_e}}
+     {\sum_t r_t / \sqrt{\mathrm{step}_t}}.
+\end{equation}
+
+This rule was intended to reward repeatable evaluators while preventing
+coarse evaluators from dominating the composite.
+
+\section{Tau3 Experiment}
+
+\subsection{Collection}
+
+The main Tau3 experiment contained:
+
+\begin{itemize}
+    \item 80 cases across four domains;
+    \item 3 independent agent runs per case;
+    \item 3 judge replays per fixed output;
+    \item 3 evaluators; and
+    \item 2,160 total evaluator observations.
+\end{itemize}
+
+The evaluator set was:
+
+\begin{itemize}
+    \item GoalSuccessRateEvaluator;
+    \item HelpfulnessEvaluator; and
+    \item InstructionFollowingEvaluator.
+\end{itemize}
+
+Tau3's binary native reward was excluded from the weighting calculation. It
+was retained as an external task-success signal for evaluating whether the
+resulting composite remained aligned with objective task completion.
+
+\subsection{Calibration Size}
+
+The analysis repeatedly subsampled cases, agent runs, and judge replays. The
+smallest tested design that consistently passed the provisional uncertainty
+and stability thresholds was:
+
+\begin{center}
+\[
+80\ \text{cases}
+\times 3\ \text{agent runs}
+\times 2\ \text{judge replays}.
+\]
+\end{center}
+
+Designs with 12 or 20 cases were too uncertain. Designs with 40 cases
+occasionally passed, but not reliably. Adding a third judge replay at 80 cases
+narrowed the weight intervals but did not materially improve the uncertainty
+of the final composite score.
+
+\subsection{Learned Weights}
+
+The complete fit produced approximately the following results:
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+Evaluator & Reliability & Learned weight \\
+\midrule
+Goal success & 0.699 & 0.238 \\
+Helpfulness & 0.711 & 0.612 \\
+Instruction following & 0.482 & 0.150 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Helpfulness received most of the weight because it had high estimated
+reliability and a smaller declared step size. The inverse-square-root step
+adjustment amplified its contribution relative to the two binary evaluators.
+
+\subsection{Stability and Held-Out Reward}
+
+Learned weighting reduced score variation across replay subsamples:
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Method & Score standard deviation \\
+\midrule
+Equal weighting & 0.0036 \\
+Learned weighting & 0.0028 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This is approximately a 24 percent reduction in score variation. However, the
+held-out association with Tau3 task success moved in the opposite direction:
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Method & Correlation with native reward \\
+\midrule
+Equal weighting & 0.139 \\
+Learned weighting & 0.107 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The learned composite was more stable, but it was a weaker proxy for Tau3
+task completion. Both correlations were weak.
+
+\subsection{Shrinkage Experiment}
+
+The follow-up experiment blended equal and learned weights:
+
+\begin{equation}
+w_e^{(\alpha)}
+=
+(1-\alpha)w_e^{\mathrm{equal}}
++ \alpha w_e^{\mathrm{learned}},
+\qquad 0 \leq \alpha \leq 1.
+\end{equation}
+
+\begin{center}
+\begin{tabular}{rrr}
+\toprule
+Learned fraction \(\alpha\) & Score standard deviation
+& Reward correlation \\
+\midrule
+0.00 & 0.0036 & 0.139 \\
+0.25 & 0.0033 & 0.133 \\
+0.50 & 0.0030 & 0.126 \\
+0.75 & 0.0028 & 0.117 \\
+1.00 & 0.0028 & 0.107 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Increasing the learned fraction continuously improved stability while
+continuously reducing task-reward alignment. No tested blend improved both
+measurements.
+
+\section{What the Experiment Revealed}
+
+\subsection{Reliability Is Not Importance}
+
+Reliability describes whether an evaluator is repeatable and discriminative.
+It does not determine whether that evaluator measures the quality dimension a
+customer cares about.
+
+An evaluator can be:
+
+\begin{itemize}
+    \item highly consistent but irrelevant to the target;
+    \item noisy but semantically essential;
+    \item fine-grained but off-axis; or
+    \item coarse but closely aligned with task success.
+\end{itemize}
+
+The current weighting rule treats repeatability and score resolution as
+importance. The Tau3 result shows that this assumption is not generally
+defensible.
+
+\subsection{Agent-Run Variation Is Not Pure Evaluator Noise}
+
+Judge replay variation is evaluator measurement noise because the underlying
+agent output is fixed. Agent-run variation is different: a new run produces a
+new output and may represent real agent behavior.
+
+Penalizing an evaluator for detecting variation between agent runs can
+incorrectly suppress useful signal. Agent-run variation should primarily
+contribute to uncertainty about the agent's expected performance, rather than
+automatically reducing evaluator importance.
+
+\subsection{Step Size Is Not Semantic Priority}
+
+A fine-grained scale offers more resolution, but resolution is not the same as
+importance. Dividing directly by the square root of step size can give a
+fine-grained evaluator substantial influence even when it measures a secondary
+quality dimension.
+
+Step size should instead be represented through the evaluator's measurement
+model or uncertainty. It should not independently determine semantic weight.
+
+\section{Different Objectives Produce Different Weights}
+
+Before selecting a weighting formula, the system must define what the final
+number is supposed to accomplish. There is no universally optimal weight
+vector because different objectives answer different questions.
+
+\subsection{Objective 1: Measure One Construct Precisely}
+
+Suppose several evaluators are intended to measure the same underlying
+quantity. For example, three independent judges may all estimate task
+correctness. In this setting, the statistical objective may be to minimize the
+variance of their combined estimate.
+
+If the evaluators are unbiased measurements of the same construct and their
+measurement-error covariance matrix is \(\Sigma\), the unconstrained
+minimum-variance weights are proportional to:
+
+\begin{equation}
+w^{\mathrm{precision}}
+=
+\frac{\Sigma^{-1}\mathbf{1}}
+     {\mathbf{1}^{\mathsf{T}}\Sigma^{-1}\mathbf{1}}.
+\end{equation}
+
+The intuition is that a noisy evaluator contributes less, while two evaluators
+with strongly correlated errors provide less additional information than two
+independent evaluators. The covariance matrix matters because merely adding
+more judges does not help much when they make the same mistakes.
+
+These weights are defensible only when the evaluators are genuinely measuring
+the same construct. Applying them to Goal Success, Helpfulness, and
+Instruction Following would silently assume that those dimensions are
+interchangeable measurements of one latent variable. That is a semantic
+assumption, not a consequence of the variance calculation.
+
+\subsection{Objective 2: Predict an External Outcome}
+
+If the desired score is meant to predict an external outcome, such as whether
+the agent completes a task, then the objective is predictive accuracy.
+
+The weights should answer:
+
+\begin{quote}
+Which combination of evaluator scores best predicts the outcome on cases that
+were not used to fit the combination?
+\end{quote}
+
+An evaluator may receive a large predictive coefficient even if it is
+moderately noisy, provided that it contains information about the target that
+the other evaluators do not contain. Conversely, a perfectly repeatable
+evaluator may receive little weight when it is unrelated to the target.
+
+These are target-specific weights. Weights learned to predict task completion
+must not be described as universal quality weights. A different target, such
+as customer satisfaction or policy compliance, may produce a different
+vector.
+
+\subsection{Objective 3: Express Customer Priorities}
+
+When evaluators measure different quality dimensions, the most direct and
+defensible objective is often customer utility. The customer declares a
+priority vector \(p\):
+
+\begin{equation}
+p_e \geq 0,
+\qquad
+\sum_e p_e = 1.
+\end{equation}
+
+The composite for observation \(n\) is then:
+
+\begin{equation}
+S_n^{\mathrm{declared}}
+=
+\sum_e p_e x_{ne}.
+\end{equation}
+
+For example, a customer might declare:
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Dimension & Declared weight \\
+\midrule
+Task success & 0.60 \\
+Helpfulness & 0.25 \\
+Instruction following & 0.15 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+These weights are not estimates of a hidden truth. They are an explicit
+statement that one point of task success is worth more to this application
+than one point of helpfulness or instruction following.
+
+Statistics still play an important role. They determine how uncertain the
+reported composite is, whether an evaluator is too noisy to support the
+decision, and how much additional evidence is required. They do not silently
+rewrite the customer's priorities.
+
+\subsection{Objective 4: Make a Regression Decision}
+
+A merge gate does not necessarily need an absolute universal score. Its
+objective is to determine whether a candidate changed relative to a baseline.
+
+For matched case \(i\) and evaluator \(e\), define the paired difference:
+
+\begin{equation}
+\Delta_{ie}
+=
+x_{ie}^{\mathrm{candidate}}
+- x_{ie}^{\mathrm{baseline}}.
+\end{equation}
+
+The product can estimate a mean difference and confidence interval for each
+quality dimension. It may then apply customer-declared rules such as:
+
+\begin{itemize}
+    \item task success must not regress;
+    \item instruction following must remain above a minimum threshold; and
+    \item helpfulness may trade off against latency within a declared range.
+\end{itemize}
+
+This is a decision problem rather than a measurement problem. A vector of
+paired effects and constraints may be more defensible than forcing every
+dimension into one learned scalar.
+
+\subsection{Why the Objective Must Be Declared First}
+
+The four objectives can legitimately produce different answers:
+
+\begin{itemize}
+    \item precision weighting asks which measurements are least noisy;
+    \item predictive weighting asks which measurements forecast a target;
+    \item declared weighting asks what the customer values; and
+    \item comparison testing asks whether a candidate changed enough to affect
+    a decision.
+\end{itemize}
+
+A weighting method is defensible only when its mathematical objective matches
+the product claim attached to the resulting score.
+
+\section{Revised Statistical Framework}
+
+\subsection{Layer 1: Measurement}
+
+The first layer estimates each evaluator's score and uncertainty without
+deciding its importance.
+
+Let:
+
+\begin{equation}
+s_{eiar}
+=
+\mu_e + c_{ei} + a_{eia} + \epsilon_{eiar},
+\end{equation}
+
+where:
+
+\begin{itemize}
+    \item \(e\) indexes evaluators;
+    \item \(i\) indexes cases;
+    \item \(a\) indexes agent runs;
+    \item \(r\) indexes judge replays;
+    \item \(c_{ei}\) is the evaluator-specific case effect;
+    \item \(a_{eia}\) is the effect of a particular agent output; and
+    \item \(\epsilon_{eiar}\) is judge replay noise.
+\end{itemize}
+
+This equation is a bookkeeping device for explaining where observed score
+movement comes from. The term \(\mu_e\) is evaluator \(e\)'s typical score.
+The case effect \(c_{ei}\) captures that some tasks are easier or harder. The
+agent-run effect \(a_{eia}\) captures that the agent can produce a better or
+worse output on another attempt. The replay term \(\epsilon_{eiar}\) is the
+judge's wobble when the underlying output has not changed.
+
+Only the final term is unambiguously evaluator measurement noise. The case and
+agent-run terms describe real differences in what was evaluated.
+
+For replay repeatability, both case and agent-output variation are signal:
+
+\begin{equation}
+\mathrm{repeatability}_e
+=
+\frac{v_{c,e} + v_{a,e}}
+     {v_{c,e} + v_{a,e} + v_{j,e}/k}.
+\end{equation}
+
+This statistic describes whether repeated judging preserves distinctions
+between fixed outputs. It should be reported as a diagnostic, not directly
+treated as semantic importance.
+
+The numerator asks how much fixed outputs genuinely differ from one another.
+The denominator adds the movement caused by replaying the judge. A
+repeatability near one means that most observed movement is attached to the
+fixed outputs. A value near zero means judge wobble is large relative to the
+differences the evaluator is trying to measure.
+
+For a balanced experiment with \(N\) cases, \(A\) runs per case, and \(K\)
+judge replays, the approximate uncertainty of an evaluator's suite mean is:
+
+\begin{equation}
+\mathrm{Var}(\widehat{\mu}_e)
+\approx
+\frac{v_{c,e}}{N}
++ \frac{v_{a,e}}{NA}
++ \frac{v_{j,e}}{NAK}.
+\end{equation}
+
+This decomposition determines whether more cases, agent runs, or judge
+replays are needed. The denominators provide the intuition:
+
+\begin{itemize}
+    \item more cases average down uncertainty caused by task sampling;
+    \item more agent runs average down uncertainty caused by stochastic agent
+    behavior; and
+    \item more judge replays average down judge measurement noise.
+\end{itemize}
+
+If the customer declares semantic weights \(p\), the uncertainty of the
+composite is:
+
+\begin{equation}
+\mathrm{Var}
+\left(
+\sum_e p_e \widehat{\mu}_e
+\right)
+=
+p^{\mathsf{T}}
+\mathrm{Cov}(\widehat{\mu})
+p.
+\end{equation}
+
+This equation is important because the same customer weight vector can be
+retained while the confidence interval responds to evaluator noise and
+correlation. Measurement statistics affect how certain the system is, not what
+the customer values.
+
+\subsection{Layer 2: Target-Specific Learning}
+
+The second layer is optional. It learns a predictive score when the customer
+has explicitly identified an external target. It does not replace
+customer-declared weighting for a general multi-dimensional quality report.
+
+If a benchmark reward, human label, or other external target \(y_n\) exists,
+weights can be learned through a constrained supervised objective:
+
+\begin{equation}
+\min_{w}
+\sum_n
+\mathcal{L}
+\left(
+y_n,
+\sum_e w_e x_{ne}
+\right)
++ \lambda \lVert w-p \rVert_2^2
++ \gamma w^{\mathsf{T}}\Sigma_j w,
+\end{equation}
+
+subject to:
+
+\begin{equation}
+w_e \geq 0,
+\qquad
+\sum_e w_e = 1.
+\end{equation}
+
+Here:
+
+\begin{itemize}
+    \item \(x_{ne}\) is evaluator \(e\)'s aggregated score for observation
+    \(n\);
+    \item \(y_n\) is the external quality target;
+    \item \(p\) is an equal-weight or customer-declared prior;
+    \item \(\lambda\) controls shrinkage toward the prior; and
+    \item \(\Sigma_j\) is the covariance matrix of judge measurement error.
+\end{itemize}
+
+The first term rewards combinations that predict the target on training data.
+The second term prevents a small or noisy dataset from pulling the vector too
+far from the declared prior. The third term penalizes combinations whose
+weighted judge errors have high variance.
+
+The covariance form is more general than penalizing each evaluator
+independently. If judge errors are independent, it reduces to a sum of terms
+like \(w_e^2 v_{j,e}/K\). If evaluators share a judge model or rubric failure,
+the off-diagonal covariance terms represent their correlated errors.
+
+The constraints also have practical meaning. Non-negative coefficients prevent
+the model from treating a higher Helpfulness score as evidence of lower
+quality. Requiring the weights to sum to one keeps the result on an
+interpretable convex-combination scale.
+
+Overall, the formulation separates three concerns:
+
+\begin{itemize}
+    \item prediction loss measures semantic relevance;
+    \item the prior protects against unstable small-sample coefficients; and
+    \item the noise penalty protects score repeatability.
+\end{itemize}
+
+\subsection{Customer-Declared Weights as the Default}
+
+When dimensions represent distinct values rather than redundant measurements,
+the recommended default is:
+
+\begin{equation}
+\widehat{S}
+=
+\sum_e p_e \widehat{\mu}_e,
+\end{equation}
+
+where \(p\) is supplied by the customer or application owner.
+
+The system should help the customer understand the consequences of this
+choice. It can report evaluator uncertainty, correlations between evaluators,
+sensitivity of the composite to each weight, and whether one evaluator
+dominates the result. It should not claim that replay statistics discovered
+the customer's utility function.
+
+Customers who do not want to specify priorities may use equal weights as a
+transparent neutral convention. Equal weighting is still a policy choice, but
+it is easier to explain than a data-derived vector whose objective is unclear.
+
+\subsection{Binary Targets}
+
+For a binary target such as Tau3 reward, a logistic model may be more
+appropriate:
+
+\begin{equation}
+\Pr(y_n=1 \mid x_n)
+=
+\sigma
+\left(
+\beta_0 + \sum_e \beta_e x_{ne}
+\right).
+\end{equation}
+
+The output is an estimated probability of task success rather than an
+arbitrary weighted average.
+
+Candidate methods should be selected using held-out proper scoring metrics,
+including:
+
+\begin{itemize}
+    \item Brier score;
+    \item log loss;
+    \item probability calibration; and
+    \item replay stability.
+\end{itemize}
+
+Correlation may remain a descriptive diagnostic, but it should not be the
+primary objective for a binary outcome.
+
+\subsection{When No External Target Exists}
+
+Without a reward, human label, or declared objective, semantic importance is
+not identifiable from evaluator replay data alone.
+
+In this case, the system should:
+
+\begin{itemize}
+    \item ask the customer to declare semantic priorities when the dimensions
+    differ;
+    \item otherwise retain equal weights as a transparent fallback;
+    \item report evaluator-specific uncertainty;
+    \item warn about highly noisy evaluators;
+    \item avoid presenting repeatability weights as correctness weights; and
+    \item preserve the evaluator score vector alongside any composite.
+\end{itemize}
+
+\section{Multiple Quality Dimensions}
+
+Task success, helpfulness, and instruction following may represent different
+constructs. A single automatically learned scalar can obscure those
+differences.
+
+A report can instead preserve separate dimensions:
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Dimension & Example result \\
+\midrule
+Task success & \(0.82 \pm 0.04\) \\
+Helpfulness & \(0.88 \pm 0.02\) \\
+Instruction following & \(0.91 \pm 0.05\) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Customers may then declare semantic priorities or gating constraints. For
+example:
+
+\begin{itemize}
+    \item block if task success regresses;
+    \item block if instruction following falls below 0.80; and
+    \item use helpfulness as a secondary comparison.
+\end{itemize}
+
+Measurement reliability determines confidence in each dimension. Customer
+priorities determine its importance.
+
+\section{Revised Customer Workflow}
+
+\begin{enumerate}
+    \item Run the normal evaluation and store raw evaluator observations.
+    \item Declare whether the product needs a multi-dimensional quality report,
+    a target predictor, or a paired regression decision.
+    \item For a quality composite, provide semantic weights or explicitly
+    select equal weighting.
+    \item Identify an external target when predictive calibration is desired,
+    such as benchmark reward or human labels.
+    \item Replay judges on a representative subset to estimate judge noise.
+    \item Fit candidate objective models using case-grouped cross-validation.
+    \item Compare held-out quality, uncertainty, and replay stability.
+    \item Save a versioned profile only if the configured readiness criteria
+    pass.
+    \item Apply the compatible profile to current and historical reports.
+    \item Recalibrate when the dataset, evaluators, judge model, or objective
+    changes.
+\end{enumerate}
+
+The scoring states remain:
+
+\begin{itemize}
+    \item \texttt{uncalibrated}: no usable profile exists; use equal weights;
+    \item \texttt{equal\_weight\_fallback}: calibration was attempted but the
+    evidence was insufficient; and
+    \item \texttt{calibrated}: a compatible profile passed its configured
+    readiness criteria.
+\end{itemize}
+
+\section{Profile Updates and Order Invariance}
+
+New evidence may arrive over multiple customer runs. The final profile should
+not depend accidentally on the order in which equivalent observations arrived.
+
+For a fixed observation set \(D\) and any permutation \(\pi(D)\), the desired
+invariant is:
+
+\begin{equation}
+\mathrm{Fit}(D)
+=
+\mathrm{Fit}(\pi(D)).
+\end{equation}
+
+P0 should achieve this by storing the applicable observations and refitting the
+profile from all of them. The implementation should use deterministic
+observation ordering, deterministic seeds, and a deterministic optimizer.
+
+An online update of the form:
+
+\begin{equation}
+w_{t+1}
+=
+\mathrm{Update}(w_t, B_{t+1})
+\end{equation}
+
+can be path-dependent because early batches influence the state inherited by
+later batches. Fixed learning rates, early stopping, and confidence schedules
+can all make two arrival orders produce different final vectors.
+
+If a future implementation requires streaming updates, it should either use
+mergeable sufficient statistics or periodically refit from the complete
+applicable calibration window. Order dependence should be introduced only
+deliberately, for example when recent data is intended to receive more weight
+because the experiment is drifting. In that situation the time-decay rule must
+be explicit and the resulting profile must be versioned.
+
+\section{Potential Customer Cost Reduction}
+
+\subsection{Current Experimental Cost}
+
+The provisional Tau3 design required:
+
+\begin{equation}
+80\ \text{cases}
+\times 3\ \text{agent runs}
+\times 2\ \text{judge replays}
+\times 3\ \text{evaluators}
+= 1{,}440\ \text{evaluator calls}.
+\end{equation}
+
+It also required:
+
+\begin{equation}
+80 \times 3 = 240
+\end{equation}
+
+agent executions.
+
+\subsection{Candidate Reduced-Cost Design}
+
+Relevance learning and noise estimation do not require the same repeated
+observations. A candidate design could use one ordinary evaluation over all
+cases and replay judges only on a subset:
+
+\begin{align}
+\text{Base evaluation}
+&=
+80 \times 1 \times 1 \times 3
+= 240\ \text{evaluator calls}, \\
+\text{Noise audit}
+&=
+20 \times 1 \times 2 \times 3
+= 120\ \text{additional calls}, \\
+\text{Total}
+&=
+360\ \text{evaluator calls}.
+\end{align}
+
+This illustrative design uses 75 percent fewer evaluator calls and 67 percent
+fewer agent executions than the provisional maximum. It has not yet been
+validated as sufficient.
+
+\subsection{Adaptive Collection}
+
+The product should eventually collect additional evidence only when needed:
+
+\begin{center}
+\[
+\text{initial evaluation}
+\longrightarrow
+\text{uncertainty check}
+\longrightarrow
+\text{targeted additional runs or replays}.
+\]
+\end{center}
+
+Judge replays should concentrate on evaluators whose replay noise remains
+uncertain. Additional agent runs should be used when agent stochasticity
+dominates the uncertainty of the suite mean. Stable experiments should not
+pay the maximum calibration cost repeatedly.
+
+Once fitted, a compatible profile can be reused for historical and future
+reports. Recalibration becomes periodic rather than a mandatory cost on every
+evaluation.
+
+\subsection{Cost Caveat}
+
+The revised method shifts some cost toward obtaining a trustworthy target:
+
+\begin{itemize}
+    \item objective benchmark rewards are often inexpensive;
+    \item historical customer outcomes may already exist;
+    \item human quality labels may be more expensive than model replays; and
+    \item without any external target, the system cannot learn semantic
+    importance automatically.
+\end{itemize}
+
+The cost advantage is largest when customers already possess objective
+verifier results or historical labels.
+
+\section{Immediate Experiment Plan}
+
+The next analysis can use the existing Tau3 collection without additional
+model calls.
+
+\begin{enumerate}
+    \item Aggregate the judge replays for each of the 240 case-runs.
+    \item Split training and validation folds by case, not by individual row.
+    \item Compare:
+    \begin{itemize}
+        \item equal weighting;
+        \item one or more customer-declared priority vectors;
+        \item the existing \(r/\sqrt{\mathrm{step}}\) rule;
+        \item precision weighting as a same-construct diagnostic;
+        \item constrained supervised stacking; and
+        \item supervised stacking with an equal-weight prior and judge-noise
+        penalty.
+    \end{itemize}
+    \item Evaluate held-out Brier score, log loss, calibration, replay
+    stability, and weight stability.
+    \item Bootstrap complete cases to estimate uncertainty.
+    \item Retain equal weighting if no alternative improves held-out quality
+    reliably.
+    \item Simulate smaller replay subsets to estimate the reduced-cost
+    calibration budget.
+\end{enumerate}
+
+\section{Conclusion}
+
+The Tau3 experiment did not invalidate statistical calibration. It clarified
+what calibration can and cannot establish.
+
+Variance decomposition is useful for measuring uncertainty and determining
+how much evidence is needed. It cannot determine which quality dimensions
+matter to a customer. The revised design therefore separates measurement
+reliability from semantic importance.
+
+For a general multi-dimensional quality score, customer-declared priorities
+should determine the composite and statistical analysis should determine its
+uncertainty. When an external predictive objective exists, the system may
+learn target-specific weights under cross-validation while penalizing judge
+noise and extreme departures from declared priorities. When neither a target
+nor declared priorities exist, equal weighting should remain in place as a
+transparent fallback.
+
+\end{document}
