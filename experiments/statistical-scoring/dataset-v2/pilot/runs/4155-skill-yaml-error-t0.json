@@ -1,0 +1,113 @@
+{
+  "run_id": "4155-skill-yaml-error-t0",
+  "case_id": "4155-skill-yaml-error",
+  "issue_number": 4155,
+  "trial": 0,
+  "session_id": "4155-skill-yaml-error-t0",
+  "base_commit": "7bda6c70e71cd07279470268c3d3b3f4b36adf53",
+  "fix_commit": "9663bcfa538b12599471b8f8ad62cb271311397d",
+  "workdir": "/Users/leyhuang/stan/stan-py/archive/statistical-evals/dataset-v2/pilot/worktrees/4155-skill-yaml-error-t0",
+  "started_at": "2026-09-30T15:43:08.851883+00:00",
+  "agent_configuration": {
+    "model": "bedrock/global.anthropic.claude-sonnet-4-6",
+    "resolved_model_id": "global.anthropic.claude-sonnet-4-6",
+    "region": "us-east-1",
+    "thinking": "medium",
+    "temperature": null,
+    "builtin_tools": [
+      "shell",
+      "read",
+      "write",
+      "edit"
+    ],
+    "builtin_plugins": [
+      "todos",
+      "environment"
+    ],
+    "background_tasks": false,
+    "caching": "auto",
+    "context_management": "auto",
+    "session": false,
+    "memory": false,
+    "skills_dir": null,
+    "runs_per_case": 2,
+    "max_concurrent_runs": 2,
+    "timeout_seconds": 1800
+  },
+  "experiment_config_sha256": "3001f64f479bda1e60565817c1e973663f4193f6484bfb0286a265dce7d43fea",
+  "pilot_manifest_sha256": "304e04dd1f4b1f65944b853b95442ef25bad022ab2e7c720b4e41bf0b7fcd254",
+  "runner_sha256": "fd666f13ade2f0b5505e28df4a2f6ac5e5592dc5e8f37cdf679ff3ece9163ea9",
+  "environment": {
+    "python": "3.12.14 (main, Sep  1 2026, 14:09:38) [Clang 22.1.3 ]",
+    "platform": "macOS-26.7-arm64-arm-64bit",
+    "strands_agents_version": "1.56.0",
+    "strands_stan_version": "0.0.1.dev80+g510a88d61",
+    "strands_evals_version": "1.3.0",
+    "stan_commit": "510a88d617cee1d4fded7abe5e978e7227e218e0"
+  },
+  "resolved_model_config": {
+    "model_id": "global.anthropic.claude-sonnet-4-6",
+    "include_tool_result_status": "auto",
+    "additional_request_fields": {
+      "thinking": {
+        "type": "adaptive",
+        "display": "summarized"
+      },
+      "output_config": {
+        "effort": "medium"
+      }
+    },
+    "max_tokens": 128000,
+    "cache_config": "CacheConfig(strategy='auto', ttl=None, system_prompt_ttl=True, cache_key=None, tools_ttl=True)",
+    "context_window_limit": 1000000
+  },
+  "output": "The tests correctly characterize the bug. Here is a summary:\n\n---\n\n## Summary\n\n### Root Cause\n\nIn `_parse_frontmatter` (`src/strands/vended_plugins/skills/skill.py`, lines 76\u201383), the function tries `yaml.safe_load` and, upon `yaml.YAMLError`, falls back to a \"fix unquoted colons\" heuristic and retries. The **fallback `yaml.safe_load` call was not wrapped in any try/except**. When frontmatter is truly malformed (e.g. an unterminated quoted string), the fallback parse also fails and the raw `yaml.YAMLError` (`ScannerError`) escapes the function. This violates the documented `ValueError` contract and, in `from_directory`, slips past the `except (ValueError, FileNotFoundError)` guard \u2014 aborting the entire directory scan instead of just logging a warning for the bad skill.\n\n### Changes\n\n**`src/strands/vended_plugins/skills/skill.py`** \u2014 wrapped the fallback `yaml.safe_load` in its own try/except that re-raises as `ValueError`:\n```python\ntry:\n    result = yaml.safe_load(fixed)\nexcept yaml.YAMLError as exc:\n    raise ValueError(f\"SKILL.md frontmatter is not valid YAML: {exc}\") from exc\n```\n\n**`tests/strands/vended_plugins/skills/test_skill.py`** \u2014 added three regression tests:\n1. `TestParseFrontmatter::test_unterminated_quote_raises_value_error` \u2014 asserts `_parse_frontmatter` raises `ValueError` (not `yaml.YAMLError`) for an unterminated quoted value.\n2. `TestSkillFromContent::test_malformed_yaml_raises_value_error` \u2014 asserts `Skill.from_content` raises `ValueError` for malformed YAML.\n3. `TestSkillFromDirectory::test_malformed_yaml_skill_does_not_block_siblings` \u2014 asserts that one SKILL.md with malformed YAML is skipped while valid siblings are still loaded.\n\n### Verification\n\nAll 77 tests pass (`77 passed in 0.32s`), including the 3 new regression tests that would have failed before the fix.\n",
+  "duration_seconds": 130.252,
+  "finished_at": "2026-09-30T15:45:19.195611+00:00",
+  "finished_span_count": 100,
+  "mapped_trace_count": 1,
+  "diff": "diff --git a/strands-py/src/strands/vended_plugins/skills/skill.py b/strands-py/src/strands/vended_plugins/skills/skill.py\nindex a60c1cd6c..4debfe04a 100644\n--- a/strands-py/src/strands/vended_plugins/skills/skill.py\n+++ b/strands-py/src/strands/vended_plugins/skills/skill.py\n@@ -80,7 +80,10 @@ def _parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:\n         # to improve cross-client compatibility. See: agentskills.io/client-implementation/adding-skills-support\n         logger.warning(\"YAML parse failed, retrying with colon-quoting fallback\")\n         fixed = _fix_yaml_colons(frontmatter_str)\n-        result = yaml.safe_load(fixed)\n+        try:\n+            result = yaml.safe_load(fixed)\n+        except yaml.YAMLError as exc:\n+            raise ValueError(f\"SKILL.md frontmatter is not valid YAML: {exc}\") from exc\n \n     frontmatter: dict[str, Any] = result if isinstance(result, dict) else {}\n     return frontmatter, body\ndiff --git a/strands-py/tests/strands/vended_plugins/skills/test_skill.py b/strands-py/tests/strands/vended_plugins/skills/test_skill.py\nindex cb67d71a2..568121211 100644\n--- a/strands-py/tests/strands/vended_plugins/skills/test_skill.py\n+++ b/strands-py/tests/strands/vended_plugins/skills/test_skill.py\n@@ -135,6 +135,17 @@ class TestParseFrontmatter:\n         assert frontmatter[\"description\"] == \"has --- inside\"\n         assert body == \"Body here.\"\n \n+    def test_unterminated_quote_raises_value_error(self):\n+        \"\"\"Malformed YAML (unterminated quote) must raise ValueError, not yaml.YAMLError.\n+\n+        Regression test for issue #4155: the colon-quoting fallback in\n+        _parse_frontmatter did not catch yaml.YAMLError on its own parse\n+        attempt, so truly-broken YAML escaped as an unexpected exception type.\n+        \"\"\"\n+        content = '---\\nname: bad-skill\\ndescription: \"unterminated\\n---\\nBody\\n'\n+        with pytest.raises(ValueError, match=\"not valid YAML\"):\n+            _parse_frontmatter(content)\n+\n \n class TestValidateSkillName:\n     \"\"\"Tests for _validate_skill_name (lenient validation).\"\"\"\n@@ -481,6 +492,28 @@ class TestSkillFromDirectory:\n         assert names == {\"good-skill\", \"wrong-name\"}\n         assert \"does not match parent directory name\" in caplog.text\n \n+    def test_malformed_yaml_skill_does_not_block_siblings(self, tmp_path, caplog):\n+        \"\"\"A skill with malformed YAML frontmatter must not prevent valid siblings from loading.\n+\n+        Regression test for issue #4155: yaml.YAMLError escaped the per-skill\n+        except clause in from_directory (which only caught ValueError), so one\n+        bad SKILL.md aborted the entire directory scan.\n+        \"\"\"\n+        _make_skill_dir(tmp_path, \"good-skill\")\n+\n+        bad_dir = tmp_path / \"bad-skill\"\n+        bad_dir.mkdir()\n+        (bad_dir / \"SKILL.md\").write_text(\n+            '---\\nname: bad-skill\\ndescription: \"unterminated\\n---\\nBody\\n'\n+        )\n+\n+        with caplog.at_level(logging.WARNING):\n+            skills = Skill.from_directory(tmp_path)\n+\n+        assert len(skills) == 1\n+        assert skills[0].name == \"good-skill\"\n+        assert \"bad-skill\" in caplog.text\n+\n \n class TestSkillFromContent:\n     def test_basic_content(self):\n@@ -550,6 +583,17 @@ class TestSkillFromContent:\n         with pytest.raises(ValueError):\n             Skill.from_content(content, strict=True)\n \n+    def test_malformed_yaml_raises_value_error(self):\n+        \"\"\"from_content must raise ValueError (not yaml.YAMLError) for malformed YAML.\n+\n+        Regression test for issue #4155: an unterminated quote in the\n+        frontmatter caused yaml.YAMLError to escape from from_content instead\n+        of the documented ValueError.\n+        \"\"\"\n+        content = '---\\nname: bad-skill\\ndescription: \"unterminated\\n---\\nBody\\n'\n+        with pytest.raises(ValueError):\n+            Skill.from_content(content)\n+\n \n class TestSkillFromUrl:\n     \"\"\"Tests for Skill.from_url.\"\"\"\n",
+  "diff_sha256": "dd3de65417342e40ec385d542ffdf41b76805fe06f676846b09c13950ff786be",
+  "changed_files": [
+    "strands-py/src/strands/vended_plugins/skills/skill.py",
+    "strands-py/tests/strands/vended_plugins/skills/test_skill.py"
+  ],
+  "diff_stat": " .../src/strands/vended_plugins/skills/skill.py     |  5 ++-\n .../strands/vended_plugins/skills/test_skill.py    | 44 ++++++++++++++++++++++\n 2 files changed, 48 insertions(+), 1 deletion(-)\n",
+  "hidden_test": {
+    "status": "passed",
+    "return_code": 0,
+    "command": [
+      "/Users/leyhuang/stan/stan-py/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-c",
+      "/dev/null",
+      "--confcutdir",
+      "tests/statistical_evals_hidden",
+      "tests/statistical_evals_hidden/test_issue_4155.py"
+    ],
+    "output_tail": "..                                                                       [100%]\n2 passed in 0.47s\n",
+    "checked_at": "2026-09-30T15:49:17.184342+00:00",
+    "test_sha256": "d1893e7c6f2c7082dac065a4edb48d24ef58abacd6785b2f736485ad9d17e6bf"
+  },
+  "orchestrator_status": "ok",
+  "hidden_test_initial": {
+    "status": "failed",
+    "return_code": 1,
+    "command": [
+      "/Users/leyhuang/stan/stan-py/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-c",
+      "/dev/null",
+      "--confcutdir",
+      "tests/statistical_evals_hidden",
+      "tests/statistical_evals_hidden/test_issue_4155.py"
+    ],
+    "output_tail": "uble, start_mark):\n        # See the specification for details.\n        chunks = []\n        length = 0\n        while self.peek(length) in ' \\t':\n            length += 1\n        whitespaces = self.prefix(length)\n        self.forward(length)\n        ch = self.peek()\n        if ch == '\\0':\n>           raise ScannerError(\"while scanning a quoted scalar\", start_mark,\nE           yaml.scanner.ScannerError: while scanning a quoted scalar\nE             in \"<unicode string>\", line 2, column 14:\nE               description: \"unterminated\nE                            ^\nE           found unexpected end of stream\nE             in \"<unicode string>\", line 2, column 27:\nE               description: \"unterminated\nE                                         ^\n\n../../../../../../../.venv/lib/python3.12/site-packages/yaml/scanner.py:1238: ScannerError\n\nThe above exception was the direct cause of the following exception:\n\n    def test_malformed_frontmatter_raises_documented_value_error():\n        with pytest.raises(ValueError, match=\"malformed YAML frontmatter\"):\n>           Skill.from_content(BAD_SKILL)\n\ntests/statistical_evals_hidden/test_issue_4155.py:16: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \nsrc/strands/vended_plugins/skills/skill.py:330: in from_content\n    frontmatter, body = _parse_frontmatter(content)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\ncontent = '---\\nname: bad-skill\\ndescription: \"unterminated\\n---\\nBody\\n'\n\n    def _parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:\n        \"\"\"Parse YAML frontmatter and body from SKILL.md content.\n    \n        Extracts the YAML frontmatter between ``---`` delimiters at line boundaries\n        and returns parsed key-value pairs along with the remaining markdown body.\n    \n        Args:\n            content: Full content of a SKILL.md file.\n    \n        Returns:\n            Tuple of (frontmatter_dict, body_string).\n    \n        Raises:\n            ValueError: If the frontmatter is malformed or missing required delimiters.\n        \"\"\"\n        stripped = content.strip()\n        if not stripped.startswith(\"---\"):\n            raise ValueError(\"SKILL.md must start with --- frontmatter delimiter\")\n    \n        # Find the closing --- delimiter (first line after the opener that is only dashes)\n        match = re.search(r\"\\n^---\\s*$\", stripped, re.MULTILINE)\n        if match is None:\n            raise ValueError(\"SKILL.md frontmatter missing closing --- delimiter\")\n    \n        frontmatter_str = stripped[3 : match.start()].strip()\n        body = stripped[match.end() :].strip()\n    \n        try:\n            result = yaml.safe_load(frontmatter_str)\n        except yaml.YAMLError:\n            # AgentSkills spec recommends handling malformed YAML (e.g. unquoted colons in values)\n            # to improve cross-client compatibility. See: agentskills.io/client-implementation/adding-skills-support\n            logger.warning(\"YAML parse failed, retrying with colon-quoting fallback\")\n            fixed = _fix_yaml_colons(frontmatter_str)\n            try:\n                result = yaml.safe_load(fixed)\n            except yaml.YAMLError as exc:\n>               raise ValueError(f\"SKILL.md frontmatter is not valid YAML: {exc}\") from exc\nE               ValueError: SKILL.md frontmatter is not valid YAML: while scanning a quoted scalar\nE                 in \"<unicode string>\", line 2, column 14:\nE                   description: \"unterminated\nE                                ^\nE               found unexpected end of stream\nE                 in \"<unicode string>\", line 2, column 27:\nE                   description: \"unterminated\nE                                             ^\n\nsrc/strands/vended_plugins/skills/skill.py:86: ValueError\n\nDuring handling of the above exception, another exception occurred:\n\n    def test_malformed_frontmatter_raises_documented_value_error():\n>       with pytest.raises(ValueError, match=\"malformed YAML frontmatter\"):\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE       AssertionError: Regex pattern did not match.\nE        Regex: 'malformed YAML frontmatter'\nE        Input: 'SKILL.md frontmatter is not valid YAML: while scanning a quoted scalar\\n  in \"<unicode string>\", line 2, column 14:\\n    description: \"unterminated\\n                 ^\\nfound unexpected end of stream\\n  in \"<unicode string>\", line 2, column 27:\\n    description: \"unterminated\\n                              ^'\n\ntests/statistical_evals_hidden/test_issue_4155.py:15: AssertionError\n------------------------------ Captured log call -------------------------------\nWARNING  strands.vended_plugins.skills.skill:skill.py:81 YAML parse failed, retrying with colon-quoting fallback\n=============================== warnings summary ===============================\n../../../../../../../.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475\n  /Users/leyhuang/stan/stan-py/.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /dev/.pytest_cache/v/cache/nodeids: [Errno 1] Operation not permitted: '/dev/pytest-cache-files-z0jvazd1'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n../../../../../../../.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:429\n  /Users/leyhuang/stan/stan-py/.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:429: PytestCacheWarning: could not create cache path /dev/.pytest_cache/v/cache/lastfailed: [Errno 1] Operation not permitted: '/dev/pytest-cache-files-1am2shz4'\n    config.cache.set(\"cache/lastfailed\", self.lastfailed)\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED ../../../../../../../../../../../dev::test_malformed_frontmatter_raises_documented_value_error\n1 failed, 1 passed, 2 warnings in 0.38s\n"
+  }
+}

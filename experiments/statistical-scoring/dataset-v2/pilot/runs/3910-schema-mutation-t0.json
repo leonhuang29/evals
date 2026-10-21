@@ -1,0 +1,113 @@
+{
+  "run_id": "3910-schema-mutation-t0",
+  "case_id": "3910-schema-mutation",
+  "issue_number": 3910,
+  "trial": 0,
+  "session_id": "3910-schema-mutation-t0",
+  "base_commit": "431d1372f8f70f50ffbe21f5b8a75555c374c086",
+  "fix_commit": "5e46a48de927e8456fd846de24cf1fbfc3382676",
+  "workdir": "/Users/leyhuang/stan/stan-py/archive/statistical-evals/dataset-v2/pilot/worktrees/3910-schema-mutation-t0",
+  "started_at": "2026-09-30T15:45:21.546046+00:00",
+  "agent_configuration": {
+    "model": "bedrock/global.anthropic.claude-sonnet-4-6",
+    "resolved_model_id": "global.anthropic.claude-sonnet-4-6",
+    "region": "us-east-1",
+    "thinking": "medium",
+    "temperature": null,
+    "builtin_tools": [
+      "shell",
+      "read",
+      "write",
+      "edit"
+    ],
+    "builtin_plugins": [
+      "todos",
+      "environment"
+    ],
+    "background_tasks": false,
+    "caching": "auto",
+    "context_management": "auto",
+    "session": false,
+    "memory": false,
+    "skills_dir": null,
+    "runs_per_case": 2,
+    "max_concurrent_runs": 2,
+    "timeout_seconds": 1800
+  },
+  "experiment_config_sha256": "3001f64f479bda1e60565817c1e973663f4193f6484bfb0286a265dce7d43fea",
+  "pilot_manifest_sha256": "304e04dd1f4b1f65944b853b95442ef25bad022ab2e7c720b4e41bf0b7fcd254",
+  "runner_sha256": "fd666f13ade2f0b5505e28df4a2f6ac5e5592dc5e8f37cdf679ff3ece9163ea9",
+  "environment": {
+    "python": "3.12.14 (main, Sep  1 2026, 14:09:38) [Clang 22.1.3 ]",
+    "platform": "macOS-26.7-arm64-arm-64bit",
+    "strands_agents_version": "1.56.0",
+    "strands_stan_version": "0.0.1.dev80+g510a88d61",
+    "strands_evals_version": "1.3.0",
+    "stan_commit": "510a88d617cee1d4fded7abe5e978e7227e218e0"
+  },
+  "resolved_model_config": {
+    "model_id": "global.anthropic.claude-sonnet-4-6",
+    "include_tool_result_status": "auto",
+    "additional_request_fields": {
+      "thinking": {
+        "type": "adaptive",
+        "display": "summarized"
+      },
+      "output_config": {
+        "effort": "medium"
+      }
+    },
+    "max_tokens": 128000,
+    "cache_config": "CacheConfig(strategy='auto', ttl=None, system_prompt_ttl=True, cache_key=None, tools_ttl=True)",
+    "context_window_limit": 1000000
+  },
+  "output": "## Summary\n\n### Root Cause\n\nBoth `normalize_schema` and `normalize_tool_spec` in `strands-py/src/strands/tools/tools.py` used **shallow copies** of their inputs, then wrote new values back into the shared inner dicts \u2014 mutating the caller's data.\n\n| Function | Mutation site | What got written |\n|---|---|---|\n| `normalize_schema` | `normalized[\"properties\"][prop_name] = \u2026` | Rewrote property values inside the original `properties` dict (shared by the shallow copy) |\n| `normalize_tool_spec` | `normalized[\"inputSchema\"][\"json\"] = \u2026` | Rewrote the `json` key inside the original `inputSchema` dict (shared by the shallow copy) |\n\n### Changes\n\n**`src/strands/tools/tools.py`** \u2014 two minimal surgical edits:\n\n1. **`normalize_schema`** \u2014 replaced the in-place `for` loop that mutated `properties` with a dict-comprehension that always builds a fresh `properties` dict:\n   ```python\n   # Before (mutated caller's properties dict in-place)\n   properties = normalized[\"properties\"]\n   for prop_name, prop_def in properties.items():\n       normalized[\"properties\"][prop_name] = _normalize_property(\u2026)\n\n   # After (new dict, caller's original is untouched)\n   normalized[\"properties\"] = {\n       prop_name: _normalize_property(prop_name, prop_def, _depth=_depth)\n       for prop_name, prop_def in normalized[\"properties\"].items()\n   }\n   ```\n\n2. **`normalize_tool_spec`** \u2014 replaced the direct key-write into the shared `inputSchema` dict with a spread that creates a fresh `inputSchema` dict (which also preserves any sibling keys like `\"extra\"`):\n   ```python\n   # Before (mutated caller's inputSchema dict)\n   normalized[\"inputSchema\"][\"json\"] = normalize_schema(\u2026)\n\n   # After (new dict, siblings preserved, caller untouched)\n   normalized[\"inputSchema\"] = {\n       **normalized[\"inputSchema\"],\n       \"json\": normalize_schema(normalized[\"inputSchema\"][\"json\"]),\n   }\n   ```\n\n**`tests/strands/tools/test_tools.py`** \u2014 four new regression tests added at the bottom:\n\n| Test | Checks |\n|---|---|\n| `test_normalize_schema_does_not_mutate_input` | Top-level schema dict is unchanged after call |\n| `test_normalize_schema_does_not_mutate_nested_properties` | Nested property dicts are unchanged |\n| `test_normalize_tool_spec_does_not_mutate_input_schema` | `tool_spec` (including `inputSchema`) is unchanged |\n| `test_normalize_tool_spec_preserves_sibling_input_schema_fields` | Sibling keys alongside `\"json\"` are kept in the normalized result |\n\n### Verification\n\nAll 43 tests in `tests/strands/tools/test_tools.py` pass, including the four new regression tests.\n",
+  "duration_seconds": 189.964,
+  "finished_at": "2026-09-30T15:48:31.605914+00:00",
+  "finished_span_count": 86,
+  "mapped_trace_count": 1,
+  "diff": "diff --git a/strands-py/src/strands/tools/tools.py b/strands-py/src/strands/tools/tools.py\nindex d6d5b904c..11257938a 100644\n--- a/strands-py/src/strands/tools/tools.py\n+++ b/strands-py/src/strands/tools/tools.py\n@@ -140,11 +140,12 @@ def normalize_schema(schema: dict[str, Any], *, _depth: int = 0) -> dict[str, An\n     normalized.setdefault(\"properties\", {})\n     normalized.setdefault(\"required\", [])\n \n-    # Process properties recursively\n+    # Process properties recursively \u2014 build a fresh dict so the caller's original is not mutated\n     if \"properties\" in normalized:\n-        properties = normalized[\"properties\"]\n-        for prop_name, prop_def in properties.items():\n-            normalized[\"properties\"][prop_name] = _normalize_property(prop_name, prop_def, _depth=_depth)\n+        normalized[\"properties\"] = {\n+            prop_name: _normalize_property(prop_name, prop_def, _depth=_depth)\n+            for prop_name, prop_def in normalized[\"properties\"].items()\n+        }\n \n     return normalized\n \n@@ -167,8 +168,13 @@ def normalize_tool_spec(tool_spec: ToolSpec) -> ToolSpec:\n     if \"inputSchema\" in normalized:\n         if isinstance(normalized[\"inputSchema\"], dict):\n             if \"json\" in normalized[\"inputSchema\"]:\n-                # Schema is already in correct format, just normalize inner schema\n-                normalized[\"inputSchema\"][\"json\"] = normalize_schema(normalized[\"inputSchema\"][\"json\"])\n+                # Schema is already in correct format, just normalize inner schema.\n+                # Spread into a new dict so the caller's inputSchema is not mutated; this\n+                # also preserves any sibling keys (e.g. \"extra\") alongside \"json\".\n+                normalized[\"inputSchema\"] = {\n+                    **normalized[\"inputSchema\"],\n+                    \"json\": normalize_schema(normalized[\"inputSchema\"][\"json\"]),\n+                }\n             else:\n                 # Convert direct schema to proper format\n                 normalized[\"inputSchema\"] = {\"json\": normalize_schema(normalized[\"inputSchema\"])}\ndiff --git a/strands-py/tests/strands/tools/test_tools.py b/strands-py/tests/strands/tools/test_tools.py\nindex 526def450..0f44f5295 100644\n--- a/strands-py/tests/strands/tools/test_tools.py\n+++ b/strands-py/tests/strands/tools/test_tools.py\n@@ -552,3 +552,87 @@ def test_normalize_schema_with_anyof():\n \n     assert \"type\" not in normalized[\"properties\"][\"optional_field\"]\n     assert normalized[\"properties\"][\"regular_field\"][\"type\"] == \"string\"\n+\n+\n+# ---------------------------------------------------------------------------\n+# Regression tests for issue #3910 \u2013 schema normalization must not mutate\n+# caller-owned dictionaries.\n+# ---------------------------------------------------------------------------\n+\n+def test_normalize_schema_does_not_mutate_input():\n+    \"\"\"normalize_schema must not write into the caller's schema dict.\"\"\"\n+    import copy\n+\n+    schema = {\"type\": \"object\", \"properties\": {\"name\": {}}}\n+    original = copy.deepcopy(schema)\n+\n+    normalize_schema(schema)\n+\n+    assert schema == original, (\n+        \"normalize_schema mutated the caller's schema dict; \"\n+        f\"expected {original!r}, got {schema!r}\"\n+    )\n+\n+\n+def test_normalize_schema_does_not_mutate_nested_properties():\n+    \"\"\"normalize_schema must not mutate nested property dicts inside the input.\"\"\"\n+    import copy\n+\n+    schema = {\n+        \"type\": \"object\",\n+        \"properties\": {\n+            \"user\": {\n+                \"type\": \"object\",\n+                \"properties\": {\"email\": {\"type\": \"string\"}},\n+            }\n+        },\n+    }\n+    original = copy.deepcopy(schema)\n+\n+    normalize_schema(schema)\n+\n+    assert schema == original, (\n+        \"normalize_schema mutated a nested property dict inside the caller's schema\"\n+    )\n+\n+\n+def test_normalize_tool_spec_does_not_mutate_input_schema():\n+    \"\"\"normalize_tool_spec must not write into the caller's inputSchema dict.\"\"\"\n+    import copy\n+\n+    tool_spec = {\n+        \"name\": \"demo\",\n+        \"description\": \"demo\",\n+        \"inputSchema\": {\n+            \"json\": {\"type\": \"object\", \"properties\": {\"query\": {}}},\n+            \"extra\": \"preserve-me\",\n+        },\n+    }\n+    original = copy.deepcopy(tool_spec)\n+\n+    normalize_tool_spec(tool_spec)\n+\n+    assert tool_spec == original, (\n+        \"normalize_tool_spec mutated the caller's tool_spec dict; \"\n+        f\"expected {original!r}, got {tool_spec!r}\"\n+    )\n+\n+\n+def test_normalize_tool_spec_preserves_sibling_input_schema_fields():\n+    \"\"\"Sibling keys alongside 'json' inside inputSchema must survive normalization.\"\"\"\n+    tool_spec = {\n+        \"name\": \"demo\",\n+        \"description\": \"demo\",\n+        \"inputSchema\": {\n+            \"json\": {\"type\": \"object\", \"properties\": {\"query\": {}}},\n+            \"extra\": \"preserve-me\",\n+        },\n+    }\n+\n+    normalized = normalize_tool_spec(tool_spec)\n+\n+    assert normalized[\"inputSchema\"][\"extra\"] == \"preserve-me\", (\n+        \"normalize_tool_spec dropped a sibling key from inputSchema\"\n+    )\n+    # The json sub-schema should still be normalized correctly\n+    assert normalized[\"inputSchema\"][\"json\"][\"properties\"][\"query\"][\"type\"] == \"string\"\n",
+  "diff_sha256": "a971db9dafad4c284c46e416b3ef45efc55eb3116f128f486ccfb7abc1a1e46e",
+  "changed_files": [
+    "strands-py/src/strands/tools/tools.py",
+    "strands-py/tests/strands/tools/test_tools.py"
+  ],
+  "diff_stat": " strands-py/src/strands/tools/tools.py        | 18 ++++--\n strands-py/tests/strands/tools/test_tools.py | 84 ++++++++++++++++++++++++++++\n 2 files changed, 96 insertions(+), 6 deletions(-)\n",
+  "hidden_test": {
+    "status": "passed",
+    "return_code": 0,
+    "command": [
+      "/Users/leyhuang/stan/stan-py/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-c",
+      "/dev/null",
+      "--confcutdir",
+      "tests/statistical_evals_hidden",
+      "tests/statistical_evals_hidden/test_issue_3910.py"
+    ],
+    "output_tail": "..                                                                       [100%]\n2 passed in 0.51s\n",
+    "checked_at": "2026-09-30T15:49:14.381203+00:00",
+    "test_sha256": "36fce4f31bb487bb48c22f1dca2ac996eda00bfd7aba38648f6ca84177635587"
+  },
+  "orchestrator_status": "ok",
+  "hidden_test_initial": {
+    "status": "passed",
+    "return_code": 0,
+    "command": [
+      "/Users/leyhuang/stan/stan-py/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-c",
+      "/dev/null",
+      "--confcutdir",
+      "tests/statistical_evals_hidden",
+      "tests/statistical_evals_hidden/test_issue_3910.py"
+    ],
+    "output_tail": "..                                                                       [100%]\n=============================== warnings summary ===============================\n../../../../../../../.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475\n  /Users/leyhuang/stan/stan-py/.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /dev/.pytest_cache/v/cache/nodeids: [Errno 1] Operation not permitted: '/dev/pytest-cache-files-bhz3mups'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2 passed, 1 warning in 0.26s\n"
+  }
+}

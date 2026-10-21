@@ -1,0 +1,54 @@
+{
+  "config_version": 1,
+  "experiment_id": "stan-issue-run-level-evaluator-replays-v2-pilot",
+  "frozen_at": "2026-09-30",
+  "repository": "strands-agents/harness-sdk",
+  "case_manifest": "pilot_manifest.json",
+  "agent": {
+    "model": "bedrock/global.anthropic.claude-sonnet-4-6",
+    "resolved_model_id": "global.anthropic.claude-sonnet-4-6",
+    "region": "us-east-1",
+    "thinking": "medium",
+    "temperature": null,
+    "builtin_tools": [
+      "shell",
+      "read",
+      "write",
+      "edit"
+    ],
+    "builtin_plugins": [
+      "todos",
+      "environment"
+    ],
+    "background_tasks": false,
+    "caching": "auto",
+    "context_management": "auto",
+    "session": false,
+    "memory": false,
+    "skills_dir": null,
+    "runs_per_case": 2,
+    "max_concurrent_runs": 2,
+    "timeout_seconds": 1800
+  },
+  "judge": {
+    "model_id": "global.anthropic.claude-sonnet-4-6",
+    "region": "us-east-1",
+    "temperature": null,
+    "replays_per_run": 3,
+    "max_workers": 4,
+    "evaluators": [
+      "CoherenceEvaluator",
+      "ConcisenessEvaluator",
+      "FaithfulnessEvaluator",
+      "senior-review-strict"
+    ],
+    "strict_rubric_file": "senior_review_strict_rubric.md"
+  },
+  "expected_dimensions": {
+    "cases": 5,
+    "runs": 10,
+    "judge_replays": 3,
+    "evaluators": 4,
+    "score_rows": 120
+  }
+}

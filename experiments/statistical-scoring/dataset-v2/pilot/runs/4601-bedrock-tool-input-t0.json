@@ -1,0 +1,113 @@
+{
+  "run_id": "4601-bedrock-tool-input-t0",
+  "case_id": "4601-bedrock-tool-input",
+  "issue_number": 4601,
+  "trial": 0,
+  "session_id": "4601-bedrock-tool-input-t0",
+  "base_commit": "3e5e89e265aaa33580d0cc5dbe6891f5d36a7c5f",
+  "fix_commit": "226a0f247c46355c22537d13a75e63f34de42d62",
+  "workdir": "/Users/leyhuang/stan/stan-py/archive/statistical-evals/dataset-v2/pilot/worktrees/4601-bedrock-tool-input-t0",
+  "started_at": "2026-09-30T15:34:22.260752+00:00",
+  "agent_configuration": {
+    "model": "bedrock/global.anthropic.claude-sonnet-4-6",
+    "resolved_model_id": "global.anthropic.claude-sonnet-4-6",
+    "region": "us-east-1",
+    "thinking": "medium",
+    "temperature": null,
+    "builtin_tools": [
+      "shell",
+      "read",
+      "write",
+      "edit"
+    ],
+    "builtin_plugins": [
+      "todos",
+      "environment"
+    ],
+    "background_tasks": false,
+    "caching": "auto",
+    "context_management": "auto",
+    "session": false,
+    "memory": false,
+    "skills_dir": null,
+    "runs_per_case": 2,
+    "max_concurrent_runs": 2,
+    "timeout_seconds": 1800
+  },
+  "experiment_config_sha256": "3001f64f479bda1e60565817c1e973663f4193f6484bfb0286a265dce7d43fea",
+  "pilot_manifest_sha256": "304e04dd1f4b1f65944b853b95442ef25bad022ab2e7c720b4e41bf0b7fcd254",
+  "runner_sha256": "fd666f13ade2f0b5505e28df4a2f6ac5e5592dc5e8f37cdf679ff3ece9163ea9",
+  "environment": {
+    "python": "3.12.14 (main, Sep  1 2026, 14:09:38) [Clang 22.1.3 ]",
+    "platform": "macOS-26.7-arm64-arm-64bit",
+    "strands_agents_version": "1.56.0",
+    "strands_stan_version": "0.0.1.dev80+g510a88d61",
+    "strands_evals_version": "1.3.0",
+    "stan_commit": "510a88d617cee1d4fded7abe5e978e7227e218e0"
+  },
+  "resolved_model_config": {
+    "model_id": "global.anthropic.claude-sonnet-4-6",
+    "include_tool_result_status": "auto",
+    "additional_request_fields": {
+      "thinking": {
+        "type": "adaptive",
+        "display": "summarized"
+      },
+      "output_config": {
+        "effort": "medium"
+      }
+    },
+    "max_tokens": 128000,
+    "cache_config": "CacheConfig(strategy='auto', ttl=None, system_prompt_ttl=True, cache_key=None, tools_ttl=True)",
+    "context_window_limit": 1000000
+  },
+  "output": "## Summary\n\n### Root Cause\n\nIn `src/strands/models/bedrock.py`, the `_format_request_message_content` method passed `toolUse[\"input\"]` through to Bedrock's Converse API verbatim (line 1125). When a conversation is replayed and a tool-use block carries a non-dict `input` value (`None`, `\"\"`, `[]`, an integer, etc.) \u2014 which can happen with no-argument tools \u2014 Bedrock rejects the request with a `ValidationException` because it requires `toolUse.input` to be a JSON object.\n\n### Changes\n\n**`src/strands/models/bedrock.py`** \u2014 `_format_request_message_content`, `toolUse` branch (lines 1120\u20131129):\n\n```python\n# Before\nreturn {\n    \"toolUse\": {\n        \"input\": tool_use[\"input\"],   # raw value, could be None / \"\" / [] \u2026\n        ...\n    }\n}\n\n# After\nraw_input = tool_use[\"input\"]\nnormalized_input = raw_input if isinstance(raw_input, dict) else {}\nreturn {\n    \"toolUse\": {\n        \"input\": normalized_input,    # always a dict\n        ...\n    }\n}\n```\n\nThe fix reads from the original dict but writes only to the new return value, so the caller's message is never mutated.\n\n**`tests/strands/models/test_bedrock.py`** \u2014 three new test functions added after the existing `guardContent` tests:\n\n| Test | What it checks |\n|---|---|\n| `test_format_request_message_content_normalizes_malformed_tool_use_input` | Parametrised over `None`, `\"\"`, `\"string\"`, `[]`, `[\"a\",\"b\"]`, `42` \u2014 all must produce `input == {}` |\n| `test_format_request_message_content_preserves_valid_dict_tool_use_input` | `{}`, `{\"key\":\"value\"}`, nested dict \u2014 all must pass through unchanged |\n| `test_format_request_message_content_does_not_mutate_tool_use_input` | After `format_request`, the original message still has `input is None` |\n\n### Verification\n\n```\n308 passed in 1.35s\n```\n\nAll 308 tests in `tests/strands/models/test_bedrock.py` pass, including the 8 new regression tests.\n",
+  "duration_seconds": 268.627,
+  "finished_at": "2026-09-30T15:38:51.214705+00:00",
+  "finished_span_count": 120,
+  "mapped_trace_count": 1,
+  "diff": "diff --git a/strands-py/src/strands/models/bedrock.py b/strands-py/src/strands/models/bedrock.py\nindex 315bc1394..d7ddf16f0 100644\n--- a/strands-py/src/strands/models/bedrock.py\n+++ b/strands-py/src/strands/models/bedrock.py\n@@ -1120,9 +1120,15 @@ class BedrockModel(Model):\n         # https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolUseBlock.html\n         if \"toolUse\" in content:\n             tool_use = content[\"toolUse\"]\n+            raw_input = tool_use[\"input\"]\n+            # Bedrock requires toolUse.input to be a JSON object.  Any non-dict\n+            # value (None, \"\", [], \u2026) would cause a ValidationException on the\n+            # next Converse call, so we normalise it to an empty object here.\n+            # Valid dict inputs \u2013 including {} \u2013 are forwarded unchanged.\n+            normalized_input = raw_input if isinstance(raw_input, dict) else {}\n             return {\n                 \"toolUse\": {\n-                    \"input\": tool_use[\"input\"],\n+                    \"input\": normalized_input,\n                     \"name\": tool_use[\"name\"],\n                     \"toolUseId\": tool_use[\"toolUseId\"],\n                 }\ndiff --git a/strands-py/tests/strands/models/test_bedrock.py b/strands-py/tests/strands/models/test_bedrock.py\nindex ef4567a79..18d39acb1 100644\n--- a/strands-py/tests/strands/models/test_bedrock.py\n+++ b/strands-py/tests/strands/models/test_bedrock.py\n@@ -2467,6 +2467,127 @@ def test_format_request_message_content_guard_content_with_qualifiers(model, mod\n     assert formatted == {\"guardContent\": {\"text\": {\"text\": \"evaluate me\", \"qualifiers\": [\"guard_content\"]}}}\n \n \n+# ---------------------------------------------------------------------------\n+# toolUse.input normalisation \u2013 issue #4601\n+# ---------------------------------------------------------------------------\n+\n+\n+@pytest.mark.parametrize(\n+    \"bad_input\",\n+    [\n+        None,\n+        \"\",\n+        \"some-string\",\n+        [],\n+        [\"a\", \"b\"],\n+        42,\n+    ],\n+    ids=[\"none\", \"empty_string\", \"string\", \"empty_list\", \"list\", \"int\"],\n+)\n+def test_format_request_message_content_normalizes_malformed_tool_use_input(model, model_id, bad_input):\n+    \"\"\"Non-dict toolUse.input values must be replaced with {} before sending to Bedrock.\n+\n+    Bedrock rejects replayed history whose toolUse.input is None, an empty\n+    string, a list, or any other non-object with a ValidationException.\n+\n+    See: https://github.com/strands-agents/harness-sdk/issues/4601\n+    \"\"\"\n+    messages = [\n+        {\"role\": \"user\", \"content\": [{\"text\": \"go\"}]},\n+        {\n+            \"role\": \"assistant\",\n+            \"content\": [\n+                {\n+                    \"toolUse\": {\n+                        \"toolUseId\": \"t1\",\n+                        \"name\": \"no_args_tool\",\n+                        \"input\": bad_input,\n+                    }\n+                }\n+            ],\n+        },\n+        {\n+            \"role\": \"user\",\n+            \"content\": [{\"toolResult\": {\"toolUseId\": \"t1\", \"content\": [{\"text\": \"ok\"}]}}],\n+        },\n+    ]\n+\n+    formatted_request = model.format_request(messages)\n+\n+    tool_use = formatted_request[\"messages\"][1][\"content\"][0][\"toolUse\"]\n+    assert tool_use[\"input\"] == {}, (\n+        f\"Expected malformed input {bad_input!r} to be normalised to {{}}, got {tool_use['input']!r}\"\n+    )\n+\n+\n+def test_format_request_message_content_preserves_valid_dict_tool_use_input(model, model_id):\n+    \"\"\"A dict toolUse.input (including empty {}) must pass through unchanged.\n+\n+    See: https://github.com/strands-agents/harness-sdk/issues/4601\n+    \"\"\"\n+    for valid_input in [{}, {\"key\": \"value\"}, {\"nested\": {\"a\": 1}}]:\n+        messages = [\n+            {\"role\": \"user\", \"content\": [{\"text\": \"go\"}]},\n+            {\n+                \"role\": \"assistant\",\n+                \"content\": [\n+                    {\n+                        \"toolUse\": {\n+                            \"toolUseId\": \"t1\",\n+                            \"name\": \"some_tool\",\n+                            \"input\": valid_input,\n+                        }\n+                    }\n+                ],\n+            },\n+            {\n+                \"role\": \"user\",\n+                \"content\": [{\"toolResult\": {\"toolUseId\": \"t1\", \"content\": [{\"text\": \"ok\"}]}}],\n+            },\n+        ]\n+\n+        formatted_request = model.format_request(messages)\n+\n+        tool_use = formatted_request[\"messages\"][1][\"content\"][0][\"toolUse\"]\n+        assert tool_use[\"input\"] == valid_input, (\n+            f\"Valid dict input {valid_input!r} should not be modified, got {tool_use['input']!r}\"\n+        )\n+\n+\n+def test_format_request_message_content_does_not_mutate_tool_use_input(model, model_id):\n+    \"\"\"Normalising a malformed toolUse.input must not modify the original message dict.\n+\n+    See: https://github.com/strands-agents/harness-sdk/issues/4601\n+    \"\"\"\n+    original_bad_input = None\n+    messages = [\n+        {\"role\": \"user\", \"content\": [{\"text\": \"go\"}]},\n+        {\n+            \"role\": \"assistant\",\n+            \"content\": [\n+                {\n+                    \"toolUse\": {\n+                        \"toolUseId\": \"t1\",\n+                        \"name\": \"no_args_tool\",\n+                        \"input\": original_bad_input,\n+                    }\n+                }\n+            ],\n+        },\n+        {\n+            \"role\": \"user\",\n+            \"content\": [{\"toolResult\": {\"toolUseId\": \"t1\", \"content\": [{\"text\": \"ok\"}]}}],\n+        },\n+    ]\n+\n+    model.format_request(messages)\n+\n+    # The original message must be untouched\n+    assert messages[1][\"content\"][0][\"toolUse\"][\"input\"] is None, (\n+        \"format_request must not mutate the original toolUse.input\"\n+    )\n+\n+\n def test_format_request_removes_status_field_when_configured(model, model_id):\n     model.update_config(include_tool_result_status=False)\n \n",
+  "diff_sha256": "4ebf932cd5ca7d7d15685b81906f7e4763f35fbf5c054d9b632e593daa8683b8",
+  "changed_files": [
+    "strands-py/src/strands/models/bedrock.py",
+    "strands-py/tests/strands/models/test_bedrock.py"
+  ],
+  "diff_stat": " strands-py/src/strands/models/bedrock.py        |   8 +-\n strands-py/tests/strands/models/test_bedrock.py | 121 ++++++++++++++++++++++++\n 2 files changed, 128 insertions(+), 1 deletion(-)\n",
+  "hidden_test": {
+    "status": "passed",
+    "return_code": 0,
+    "command": [
+      "/Users/leyhuang/stan/stan-py/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-c",
+      "/dev/null",
+      "--confcutdir",
+      "tests/statistical_evals_hidden",
+      "tests/statistical_evals_hidden/test_issue_4601.py"
+    ],
+    "output_tail": "........                                                                 [100%]\n8 passed in 0.46s\n",
+    "checked_at": "2026-09-30T15:49:26.501754+00:00",
+    "test_sha256": "efbd28b5edf9a5c66c5d3326483756ad1afee9946cddfb26d9632d50d5f047d1"
+  },
+  "orchestrator_status": "ok",
+  "hidden_test_initial": {
+    "status": "passed",
+    "return_code": 0,
+    "command": [
+      "/Users/leyhuang/stan/stan-py/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-c",
+      "/dev/null",
+      "--confcutdir",
+      "tests/statistical_evals_hidden",
+      "tests/statistical_evals_hidden/test_issue_4601.py"
+    ],
+    "output_tail": "........                                                                 [100%]\n=============================== warnings summary ===============================\n../../../../../../../.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475\n  /Users/leyhuang/stan/stan-py/.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /dev/.pytest_cache/v/cache/nodeids: [Errno 1] Operation not permitted: '/dev/pytest-cache-files-jup5jjg4'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n8 passed, 1 warning in 0.37s\n"
+  }
+}

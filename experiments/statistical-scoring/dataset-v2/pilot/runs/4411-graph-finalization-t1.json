@@ -1,0 +1,113 @@
+{
+  "run_id": "4411-graph-finalization-t1",
+  "case_id": "4411-graph-finalization",
+  "issue_number": 4411,
+  "trial": 1,
+  "session_id": "4411-graph-finalization-t1",
+  "base_commit": "b8a2e5c00cc145b394291f600173c3abff1bf070",
+  "fix_commit": "3d4cf9a151de50ba85a634d4564fd3b053987e50",
+  "workdir": "/Users/leyhuang/stan/stan-py/archive/statistical-evals/dataset-v2/pilot/worktrees/4411-graph-finalization-t1",
+  "started_at": "2026-09-30T15:39:00.794441+00:00",
+  "agent_configuration": {
+    "model": "bedrock/global.anthropic.claude-sonnet-4-6",
+    "resolved_model_id": "global.anthropic.claude-sonnet-4-6",
+    "region": "us-east-1",
+    "thinking": "medium",
+    "temperature": null,
+    "builtin_tools": [
+      "shell",
+      "read",
+      "write",
+      "edit"
+    ],
+    "builtin_plugins": [
+      "todos",
+      "environment"
+    ],
+    "background_tasks": false,
+    "caching": "auto",
+    "context_management": "auto",
+    "session": false,
+    "memory": false,
+    "skills_dir": null,
+    "runs_per_case": 2,
+    "max_concurrent_runs": 2,
+    "timeout_seconds": 1800
+  },
+  "experiment_config_sha256": "3001f64f479bda1e60565817c1e973663f4193f6484bfb0286a265dce7d43fea",
+  "pilot_manifest_sha256": "304e04dd1f4b1f65944b853b95442ef25bad022ab2e7c720b4e41bf0b7fcd254",
+  "runner_sha256": "fd666f13ade2f0b5505e28df4a2f6ac5e5592dc5e8f37cdf679ff3ece9163ea9",
+  "environment": {
+    "python": "3.12.14 (main, Sep  1 2026, 14:09:38) [Clang 22.1.3 ]",
+    "platform": "macOS-26.7-arm64-arm-64bit",
+    "strands_agents_version": "1.56.0",
+    "strands_stan_version": "0.0.1.dev80+g510a88d61",
+    "strands_evals_version": "1.3.0",
+    "stan_commit": "510a88d617cee1d4fded7abe5e978e7227e218e0"
+  },
+  "resolved_model_config": {
+    "model_id": "global.anthropic.claude-sonnet-4-6",
+    "include_tool_result_status": "auto",
+    "additional_request_fields": {
+      "thinking": {
+        "type": "adaptive",
+        "display": "summarized"
+      },
+      "output_config": {
+        "effort": "medium"
+      }
+    },
+    "max_tokens": 128000,
+    "cache_config": "CacheConfig(strategy='auto', ttl=None, system_prompt_ttl=True, cache_key=None, tools_ttl=True)",
+    "context_window_limit": 1000000
+  },
+  "output": "All 101 tests pass. Here is the full summary.\n\n---\n\n## Root Cause\n\n`Graph.stream_async()` in `strands-py/src/strands/multiagent/graph.py` had two related bugs:\n\n### Bug 1 \u2014 Result yielded before after-hook fires\nThe `yield MultiAgentResultEvent(result=result).as_dict()` call was **inside** the `try` block, which means it was suspended at that `yield` point before the `finally` block (containing `AfterMultiAgentInvocationEvent`) had a chance to run. A caller that stopped consuming after receiving the result would never drive the generator forward into `finally`, so cleanup was deferred until GC \u2014 or simply never ran if `aclose()` was never called.\n\n### Bug 2 \u2014 `invocation_state` not passed to the after-hook\n`AfterMultiAgentInvocationEvent(self)` was called without the `invocation_state` argument, leaving `event.invocation_state = None` instead of the dict the caller supplied.\n\nThe `Swarm.stream_async()` already had the correct pattern (result yield placed **after** the `try/finally` block) \u2014 the `Graph` just didn't follow it.\n\n---\n\n## Changes\n\n### `strands-py/src/strands/multiagent/graph.py`\n\n```diff\n-               # Yield final result (consistent with Agent's AgentResultEvent format)\n-               result = self._build_result(interrupts)\n-               # Use the same event format as Agent for consistency\n-               yield MultiAgentResultEvent(result=result).as_dict()\n-\n            except Exception:\n                logger.exception(\"graph execution failed\")\n                self.state.status = Status.FAILED\n                raise\n            finally:\n                self.state.execution_time = self._commit_active_interval(self.state.execution_time)\n-               await self.hooks.invoke_callbacks_async(AfterMultiAgentInvocationEvent(self))\n+               await self.hooks.invoke_callbacks_async(AfterMultiAgentInvocationEvent(self, invocation_state))\n                self._resume_from_session = False\n                self._resume_next_nodes.clear()\n+\n+           # Yield final result after cleanup (consistent with Agent's AgentResultEvent format)\n+           result = self._build_result(interrupts)\n+           # Use the same event format as Agent for consistency\n+           yield MultiAgentResultEvent(result=result).as_dict()\n```\n\nMoving the `yield` outside the `try/finally` block ensures:\n1. The `finally` clause (and thus `AfterMultiAgentInvocationEvent`) always runs before the result is exposed.\n2. If the stream is closed early (any `yield` inside the `try` block), `GeneratorExit` propagates through `finally`, so the after-hook still fires.\n3. If the after-hook itself raises, the `finally` exception propagates and the result `yield` is never reached.\n\n---\n\n## Regression Tests Added\n\n**`tests/strands/multiagent/test_graph.py` \u2014 `TestGraphFinalizationLifecycle`** (7 tests):\n\n| Test | Requirement |\n|---|---|\n| `test_after_hook_fires_before_result_is_yielded` | Req 1 \u2014 hook fires before result reaches caller |\n| `test_after_hook_fires_exactly_once_on_success` | Req 1 \u2014 hook fires exactly once |\n| `test_after_hook_receives_invocation_state` | Req 2 \u2014 same `invocation_state` object is carried |\n| `test_after_hook_receives_default_empty_invocation_state` | Req 2 \u2014 defaults to `{}` not `None` |\n| `test_after_hook_fires_on_graph_execution_error` | Req 3 \u2014 hook fires on execution error |\n| `test_after_hook_fires_when_caller_closes_stream_early` | Req 3 \u2014 hook fires on early stream close |\n| `test_result_not_exposed_when_after_hook_raises` | Req 4 \u2014 result not exposed when cleanup fails |\n\n---\n\n## Verification\n\n```\n101 passed in 3.04s\n```\n\nAll pre-existing tests continue to pass; all 7 new regression tests pass with the fix applied.\n",
+  "duration_seconds": 245.759,
+  "finished_at": "2026-09-30T15:43:06.615605+00:00",
+  "finished_span_count": 126,
+  "mapped_trace_count": 1,
+  "diff": "diff --git a/strands-py/src/strands/multiagent/graph.py b/strands-py/src/strands/multiagent/graph.py\nindex 35f4d8c68..5f2bf2902 100644\n--- a/strands-py/src/strands/multiagent/graph.py\n+++ b/strands-py/src/strands/multiagent/graph.py\n@@ -695,22 +695,21 @@ class Graph(MultiAgentBase):\n \n                 logger.debug(\"status=<%s> | graph execution completed\", self.state.status)\n \n-                # Yield final result (consistent with Agent's AgentResultEvent format)\n-                result = self._build_result(interrupts)\n-\n-                # Use the same event format as Agent for consistency\n-                yield MultiAgentResultEvent(result=result).as_dict()\n-\n             except Exception:\n                 logger.exception(\"graph execution failed\")\n                 self.state.status = Status.FAILED\n                 raise\n             finally:\n                 self.state.execution_time = self._commit_active_interval(self.state.execution_time)\n-                await self.hooks.invoke_callbacks_async(AfterMultiAgentInvocationEvent(self))\n+                await self.hooks.invoke_callbacks_async(AfterMultiAgentInvocationEvent(self, invocation_state))\n                 self._resume_from_session = False\n                 self._resume_next_nodes.clear()\n \n+            # Yield final result after cleanup (consistent with Agent's AgentResultEvent format)\n+            result = self._build_result(interrupts)\n+            # Use the same event format as Agent for consistency\n+            yield MultiAgentResultEvent(result=result).as_dict()\n+\n     def _validate_graph(self, nodes: dict[str, GraphNode]) -> None:\n         \"\"\"Validate graph nodes for duplicate instances.\"\"\"\n         # Check for duplicate node instances\ndiff --git a/strands-py/tests/strands/multiagent/test_graph.py b/strands-py/tests/strands/multiagent/test_graph.py\nindex 6270de007..6ef907d69 100644\n--- a/strands-py/tests/strands/multiagent/test_graph.py\n+++ b/strands-py/tests/strands/multiagent/test_graph.py\n@@ -3545,3 +3545,174 @@ class TestResumeInFlightSibling:\n         join_input_text = \" \".join(str(block) for block in join_input)\n         assert \"From left:\" in join_input_text\n         assert \"From right:\" in join_input_text\n+\n+\n+# ---------------------------------------------------------------------------\n+# Regression tests for issue #4411:\n+# Graph exposes its terminal result before invocation cleanup\n+# ---------------------------------------------------------------------------\n+\n+class TestGraphFinalizationLifecycle:\n+    \"\"\"Tests verifying the after-invocation hook lifecycle relative to result exposure.\"\"\"\n+\n+    @staticmethod\n+    def _simple_graph() -> Graph:\n+        \"\"\"Build a single-node graph backed by a mock agent.\"\"\"\n+        agent = create_mock_agent(\"node_a\", \"done\")\n+        builder = GraphBuilder()\n+        builder.add_node(agent, \"node_a\")\n+        builder.set_entry_point(\"node_a\")\n+        return builder.build()\n+\n+    # ------------------------------------------------------------------\n+    # Requirement 1: after-hook runs exactly once BEFORE the result is\n+    # exposed to the caller.\n+    # ------------------------------------------------------------------\n+\n+    @pytest.mark.asyncio\n+    async def test_after_hook_fires_before_result_is_yielded(self):\n+        \"\"\"AfterMultiAgentInvocationEvent must run before the result event is yielded.\"\"\"\n+        from strands.hooks import AfterMultiAgentInvocationEvent\n+\n+        graph = self._simple_graph()\n+        order: list[str] = []\n+\n+        def after_hook(event: AfterMultiAgentInvocationEvent) -> None:\n+            order.append(\"after_hook\")\n+\n+        graph.hooks.add_callback(AfterMultiAgentInvocationEvent, after_hook)\n+\n+        async for event in graph.stream_async(\"task\"):\n+            if \"result\" in event:\n+                order.append(\"result_yielded\")\n+\n+        assert order == [\"after_hook\", \"result_yielded\"], (\n+            \"after-hook must fire before the result event reaches the caller, got: %s\" % order\n+        )\n+\n+    @pytest.mark.asyncio\n+    async def test_after_hook_fires_exactly_once_on_success(self):\n+        \"\"\"AfterMultiAgentInvocationEvent fires exactly once on a successful run.\"\"\"\n+        from strands.hooks import AfterMultiAgentInvocationEvent\n+\n+        graph = self._simple_graph()\n+        calls: list[int] = []\n+\n+        graph.hooks.add_callback(AfterMultiAgentInvocationEvent, lambda e: calls.append(1))\n+\n+        async for _ in graph.stream_async(\"task\"):\n+            pass\n+\n+        assert len(calls) == 1, \"after-hook should fire exactly once, fired %d times\" % len(calls)\n+\n+    # ------------------------------------------------------------------\n+    # Requirement 2: the event carries the active invocation_state.\n+    # ------------------------------------------------------------------\n+\n+    @pytest.mark.asyncio\n+    async def test_after_hook_receives_invocation_state(self):\n+        \"\"\"AfterMultiAgentInvocationEvent.invocation_state must equal the supplied dict.\"\"\"\n+        from strands.hooks import AfterMultiAgentInvocationEvent\n+\n+        graph = self._simple_graph()\n+        captured: list = []\n+        my_state = {\"trace_id\": \"abc-123\", \"env\": \"test\"}\n+\n+        graph.hooks.add_callback(AfterMultiAgentInvocationEvent, lambda e: captured.append(e.invocation_state))\n+\n+        async for _ in graph.stream_async(\"task\", invocation_state=my_state):\n+            pass\n+\n+        assert len(captured) == 1\n+        assert captured[0] is my_state, (\n+            \"after-hook should receive the same invocation_state object that was passed to stream_async\"\n+        )\n+\n+    @pytest.mark.asyncio\n+    async def test_after_hook_receives_default_empty_invocation_state(self):\n+        \"\"\"When invocation_state is omitted the event carries an empty dict (not None).\"\"\"\n+        from strands.hooks import AfterMultiAgentInvocationEvent\n+\n+        graph = self._simple_graph()\n+        captured: list = []\n+\n+        graph.hooks.add_callback(AfterMultiAgentInvocationEvent, lambda e: captured.append(e.invocation_state))\n+\n+        async for _ in graph.stream_async(\"task\"):\n+            pass\n+\n+        assert len(captured) == 1\n+        assert captured[0] == {}, \"invocation_state should be an empty dict when not supplied\"\n+\n+    # ------------------------------------------------------------------\n+    # Requirement 3: after-hook fires even when graph execution raises or\n+    # the caller closes the stream early.\n+    # ------------------------------------------------------------------\n+\n+    @pytest.mark.asyncio\n+    async def test_after_hook_fires_on_graph_execution_error(self):\n+        \"\"\"AfterMultiAgentInvocationEvent must fire even when graph execution raises.\"\"\"\n+        from strands.hooks import AfterMultiAgentInvocationEvent\n+\n+        agent = create_mock_agent(\"boom\", \"never\")\n+\n+        async def exploding_stream(*args, **kwargs):\n+            yield {\"agent_start\": True}\n+            raise RuntimeError(\"node exploded\")\n+\n+        agent.stream_async = Mock(side_effect=exploding_stream)\n+\n+        builder = GraphBuilder()\n+        builder.add_node(agent, \"boom\")\n+        builder.set_entry_point(\"boom\")\n+        graph = builder.build()\n+\n+        calls: list[int] = []\n+        graph.hooks.add_callback(AfterMultiAgentInvocationEvent, lambda e: calls.append(1))\n+\n+        with pytest.raises(RuntimeError, match=\"node exploded\"):\n+            async for _ in graph.stream_async(\"task\"):\n+                pass\n+\n+        assert len(calls) == 1, \"after-hook must fire once even when execution raises\"\n+\n+    @pytest.mark.asyncio\n+    async def test_after_hook_fires_when_caller_closes_stream_early(self):\n+        \"\"\"AfterMultiAgentInvocationEvent must fire when the caller stops consuming early.\"\"\"\n+        from strands.hooks import AfterMultiAgentInvocationEvent\n+\n+        graph = self._simple_graph()\n+        calls: list[int] = []\n+        graph.hooks.add_callback(AfterMultiAgentInvocationEvent, lambda e: calls.append(1))\n+\n+        # Consume exactly one event then close the generator.\n+        gen = graph.stream_async(\"task\")\n+        await gen.__anext__()      # receive the first event\n+        await gen.aclose()         # close without consuming the rest\n+\n+        assert len(calls) == 1, \"after-hook must fire when stream is closed early\"\n+\n+    # ------------------------------------------------------------------\n+    # Requirement 4: if after-hook cleanup raises, the result must NOT be\n+    # exposed to the caller.\n+    # ------------------------------------------------------------------\n+\n+    @pytest.mark.asyncio\n+    async def test_result_not_exposed_when_after_hook_raises(self):\n+        \"\"\"If AfterMultiAgentInvocationEvent raises, the result event must not be yielded.\"\"\"\n+        from strands.hooks import AfterMultiAgentInvocationEvent\n+\n+        graph = self._simple_graph()\n+\n+        def failing_hook(event: AfterMultiAgentInvocationEvent) -> None:\n+            raise RuntimeError(\"cleanup failed\")\n+\n+        graph.hooks.add_callback(AfterMultiAgentInvocationEvent, failing_hook)\n+\n+        seen_result = False\n+        with pytest.raises(RuntimeError, match=\"cleanup failed\"):\n+            async for event in graph.stream_async(\"task\"):\n+                if \"result\" in event:\n+                    seen_result = True\n+\n+        assert not seen_result, \"result must not be yielded when after-hook cleanup raises\"\n",
+  "diff_sha256": "3a19b1a6d200d53e4b8536e580c8b761b313e9f008e03509fa5fa399555d42c9",
+  "changed_files": [
+    "strands-py/src/strands/multiagent/graph.py",
+    "strands-py/tests/strands/multiagent/test_graph.py"
+  ],
+  "diff_stat": " strands-py/src/strands/multiagent/graph.py        |  13 +-\n strands-py/tests/strands/multiagent/test_graph.py | 171 ++++++++++++++++++++++\n 2 files changed, 177 insertions(+), 7 deletions(-)\n",
+  "hidden_test": {
+    "status": "passed",
+    "return_code": 0,
+    "command": [
+      "/Users/leyhuang/stan/stan-py/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-c",
+      "/dev/null",
+      "--confcutdir",
+      "tests/statistical_evals_hidden",
+      "tests/statistical_evals_hidden/test_issue_4411.py"
+    ],
+    "output_tail": ".                                                                        [100%]\n1 passed in 0.54s\n",
+    "checked_at": "2026-09-30T15:49:25.063969+00:00",
+    "test_sha256": "d0327dac7421ff4d8713c434a6da0f326583f47e027baa5b4776e16b050d7598"
+  },
+  "orchestrator_status": "ok",
+  "hidden_test_initial": {
+    "status": "passed",
+    "return_code": 0,
+    "command": [
+      "/Users/leyhuang/stan/stan-py/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-c",
+      "/dev/null",
+      "--confcutdir",
+      "tests/statistical_evals_hidden",
+      "tests/statistical_evals_hidden/test_issue_4411.py"
+    ],
+    "output_tail": ".                                                                        [100%]\n=============================== warnings summary ===============================\n../../../../../../../.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475\n  /Users/leyhuang/stan/stan-py/.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /dev/.pytest_cache/v/cache/nodeids: [Errno 1] Operation not permitted: '/dev/pytest-cache-files-iiz5uo1s'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n1 passed, 1 warning in 0.31s\n"
+  }
+}

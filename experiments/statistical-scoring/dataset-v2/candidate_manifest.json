@@ -1,0 +1,392 @@
+{
+  "manifest_version": 1,
+  "generated_at": "2026-09-29",
+  "repository": "strands-agents/harness-sdk",
+  "selection_policy": "CANDIDATE_AUDIT.md",
+  "source_query": "repo:strands-agents/harness-sdk is:issue is:closed label:bug label:python closed:>=2026-07-01",
+  "pool_counts": {
+    "closed_issues": 1020,
+    "closed_python_bugs": 399,
+    "recent_closed_python_bugs": 82,
+    "manually_screened": 35,
+    "selected": 20
+  },
+  "target_design": {
+    "original_case_count": 10,
+    "new_case_count": 20,
+    "total_case_count": 30,
+    "runs_per_case": 2,
+    "replays_per_run": 3,
+    "evaluator_count": 4,
+    "expected_score_rows": 720
+  },
+  "candidates": [
+    {
+      "rank": 1,
+      "status": "selected",
+      "issue_number": 4601,
+      "title": "[BUG] `BedrockModel._format_request_message_content` does not normalize falsy/non-dict `toolUse.input` before replay",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4601",
+      "area": "model",
+      "fix_pr_number": 4625,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4625",
+      "base_commit": "3e5e89e265aaa33580d0cc5dbe6891f5d36a7c5f",
+      "merge_commit": "226a0f247c46355c22537d13a75e63f34de42d62",
+      "source_files": [
+        "strands-py/src/strands/models/bedrock.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/models/test_bedrock.py"
+      ]
+    },
+    {
+      "rank": 2,
+      "status": "selected",
+      "issue_number": 4411,
+      "title": "[BUG] Graph emits its terminal result before after-invocation cleanup and drops invocation_state",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4411",
+      "area": "multiagent",
+      "fix_pr_number": 4580,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4580",
+      "base_commit": "b8a2e5c00cc145b394291f600173c3abff1bf070",
+      "merge_commit": "3d4cf9a151de50ba85a634d4564fd3b053987e50",
+      "source_files": [
+        "strands-py/src/strands/multiagent/graph.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/hooks/test_multi_agent_hooks.py",
+        "strands-py/tests/strands/multiagent/test_graph.py"
+      ]
+    },
+    {
+      "rank": 3,
+      "status": "selected",
+      "issue_number": 4354,
+      "title": "[BUG] Unrecognized limits keys are silently ignored, leaving the agent uncapped",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4354",
+      "area": "agent",
+      "fix_pr_number": 4355,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4355",
+      "base_commit": "a59b124393fbcd3e89051ecc965d84a1c396f5bd",
+      "merge_commit": "534e8b6a76bcad231122050798c575e36771a014",
+      "source_files": [
+        "strands-py/src/strands/agent/agent.py",
+        "strands-py/src/strands/types/agent.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/agent/test_agent_limits.py"
+      ]
+    },
+    {
+      "rank": 4,
+      "status": "selected",
+      "issue_number": 4251,
+      "title": "[BUG] Python structured output forced retry uses `tool_choice: any`, so provider built-in tools can be chosen instead of the output tool",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4251",
+      "area": "structured_output",
+      "fix_pr_number": 4263,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4263",
+      "base_commit": "8423dd307c6f7715c0245a29b76c6778edc003c5",
+      "merge_commit": "f627f5425061964d512d8dea6155da02f5df1653",
+      "source_files": [
+        "strands-py/src/strands/event_loop/event_loop.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/event_loop/test_event_loop_structured_output.py"
+      ]
+    },
+    {
+      "rank": 5,
+      "status": "selected",
+      "issue_number": 4220,
+      "title": "[BUG] Bedrock context-window lookup misses OpenAI-served models with nested prefixes",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4220",
+      "area": "model",
+      "fix_pr_number": 4221,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4221",
+      "base_commit": "bebf3e83c6c8fe43ddc66f7ee2652b68cdf4a198",
+      "merge_commit": "21b27d404570e466d61157f02006193c5a45ebe1",
+      "source_files": [
+        "strands-py/src/strands/models/_defaults.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/models/test_defaults.py"
+      ]
+    },
+    {
+      "rank": 6,
+      "status": "selected",
+      "issue_number": 4210,
+      "title": "[BUG] Agent span exports the system prompt as a raw attribute, bypassing semantic conventions and redaction",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4210",
+      "area": "telemetry",
+      "fix_pr_number": 4222,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4222",
+      "base_commit": "6d4f61f2849e7eb401c3f617e620cb7feef6b331",
+      "merge_commit": "e5ebbd67d0968b6839bac92a15108cb7b6a0b25a",
+      "source_files": [
+        "strands-py/src/strands/agent/agent.py",
+        "strands-py/src/strands/telemetry/tracer.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/agent/test_agent.py",
+        "strands-py/tests/strands/telemetry/test_tracer.py"
+      ]
+    },
+    {
+      "rank": 7,
+      "status": "selected",
+      "issue_number": 4198,
+      "title": "[BUG] `SnapshotSessionManager` exposes malformed immutable snapshot IDs",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4198",
+      "area": "session",
+      "fix_pr_number": 4199,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4199",
+      "base_commit": "e5ebbd67d0968b6839bac92a15108cb7b6a0b25a",
+      "merge_commit": "6d6c8fceafc28b050738b96032169e8b37a5ae30",
+      "source_files": [
+        "strands-py/src/strands/session/snapshot_session_manager.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/session/test_snapshot_session_manager.py"
+      ]
+    },
+    {
+      "rank": 8,
+      "status": "selected",
+      "issue_number": 4168,
+      "title": "[BUG] BedrockModel emits a tools cache point when automatic caching resolves to disabled",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4168",
+      "area": "model",
+      "fix_pr_number": 4186,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4186",
+      "base_commit": "e1f35db2cadab1305e65190328da5f4a39585c1a",
+      "merge_commit": "55803bc7e534d0b9b656f9399a00426bb2e7e604",
+      "source_files": [
+        "strands-py/src/strands/models/bedrock.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/models/test_bedrock.py"
+      ]
+    },
+    {
+      "rank": 9,
+      "status": "selected",
+      "issue_number": 4167,
+      "title": "[BUG] AgentResult.to_dict() is not JSON-serializable when the message contains bytes",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4167",
+      "area": "agent_result",
+      "fix_pr_number": 4313,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4313",
+      "base_commit": "f627f5425061964d512d8dea6155da02f5df1653",
+      "merge_commit": "39da4bbc6772b6c42e51b19907b2f0e31375dac6",
+      "source_files": [
+        "strands-py/src/strands/agent/agent_result.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/agent/test_agent_result.py"
+      ]
+    },
+    {
+      "rank": 10,
+      "status": "selected",
+      "issue_number": 4155,
+      "title": "[BUG] Skill.from_content leaks yaml.YAMLError instead of ValueError, aborting from_directory batches",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4155",
+      "area": "skills",
+      "fix_pr_number": 4192,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4192",
+      "base_commit": "7bda6c70e71cd07279470268c3d3b3f4b36adf53",
+      "merge_commit": "9663bcfa538b12599471b8f8ad62cb271311397d",
+      "source_files": [
+        "strands-py/src/strands/vended_plugins/skills/skill.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/vended_plugins/skills/test_skill.py"
+      ]
+    },
+    {
+      "rank": 11,
+      "status": "selected",
+      "issue_number": 4135,
+      "title": "[BUG] OpenAIResponsesModel reports tool_use instead of max_tokens for a truncated function call",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4135",
+      "area": "model",
+      "fix_pr_number": 4139,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4139",
+      "base_commit": "61deac51e4ca595a5fb3ebaf0b37ab58db53afd2",
+      "merge_commit": "4bddde645007bc691d430af038e3fc0dc2267a2f",
+      "source_files": [
+        "strands-py/src/strands/models/openai_responses.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/models/test_openai_responses.py"
+      ]
+    },
+    {
+      "rank": 12,
+      "status": "selected",
+      "issue_number": 4113,
+      "title": "[BUG] Zero-argument tools emit a failed-to-parse tool input warning",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4113",
+      "area": "streaming",
+      "fix_pr_number": 4195,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4195",
+      "base_commit": "def3be9b4d89b77e348d2d7444e4e19a3a052b50",
+      "merge_commit": "f86a170632ff64231df9a5761b0b4a7a35cee65b",
+      "source_files": [
+        "strands-py/src/strands/event_loop/streaming.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/event_loop/test_streaming.py"
+      ]
+    },
+    {
+      "rank": 13,
+      "status": "selected",
+      "issue_number": 4049,
+      "title": "file_editor str_replace and insert rewrite every tab in the file to spaces",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4049",
+      "area": "tool",
+      "fix_pr_number": 4182,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4182",
+      "base_commit": "f86a170632ff64231df9a5761b0b4a7a35cee65b",
+      "merge_commit": "332a148202f21a0473e2480eb6095944f0ba22b7",
+      "source_files": [
+        "strands-py/src/strands/vended_tools/file_editor/file_editor.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/vended_tools/test_file_editor.py"
+      ]
+    },
+    {
+      "rank": 14,
+      "status": "selected",
+      "issue_number": 4035,
+      "title": "[BUG] SageMaker streaming drops content when a PayloadPart contains multiple SSE events",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4035",
+      "area": "model",
+      "fix_pr_number": 4036,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4036",
+      "base_commit": "c1a8884ef78bbb30c44461e14d23b95461cdd18a",
+      "merge_commit": "f51718ebb13a79f3153ec1cfe7b4edafaed8f37a",
+      "source_files": [
+        "strands-py/src/strands/models/sagemaker.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/models/test_sagemaker.py"
+      ]
+    },
+    {
+      "rank": 15,
+      "status": "selected",
+      "issue_number": 4017,
+      "title": "[BUG] ContextOffloader destroys document blocks whose source is not bytes",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4017",
+      "area": "context",
+      "fix_pr_number": 4059,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4059",
+      "base_commit": "b31169e7c94e215bc5ba90e958898dacb2291557",
+      "merge_commit": "0bce4ed9371aeab0f16c941a96e092b225d771f2",
+      "source_files": [
+        "strands-py/src/strands/vended_plugins/context_offloader/plugin.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/vended_plugins/context_offloader/test_plugin.py"
+      ]
+    },
+    {
+      "rank": 16,
+      "status": "selected",
+      "issue_number": 3910,
+      "title": "[BUG] Schema normalization mutates caller-provided dictionaries",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/3910",
+      "area": "tool",
+      "fix_pr_number": 4426,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/4426",
+      "base_commit": "431d1372f8f70f50ffbe21f5b8a75555c374c086",
+      "merge_commit": "5e46a48de927e8456fd846de24cf1fbfc3382676",
+      "source_files": [
+        "strands-py/src/strands/tools/tools.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/tools/test_registry.py",
+        "strands-py/tests/strands/tools/test_tools.py"
+      ]
+    },
+    {
+      "rank": 17,
+      "status": "selected",
+      "issue_number": 3718,
+      "title": "[BUG] classify_openai_error does not recognize Bedrock Mantle context-overflow messages",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/3718",
+      "area": "model",
+      "fix_pr_number": 3722,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/3722",
+      "base_commit": "5b3e0607774677354c3cf0e6bf04308d30f7990d",
+      "merge_commit": "333885bbdabbb126ca305af4cc30d2214417e39c",
+      "source_files": [
+        "strands-py/src/strands/models/_openai_errors.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/models/test_openai_errors.py"
+      ]
+    },
+    {
+      "rank": 18,
+      "status": "selected",
+      "issue_number": 3623,
+      "title": "AfterModelCallEvent.retry drops the discarded call's token usage from accumulated_usage",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/3623",
+      "area": "hooks",
+      "fix_pr_number": 3627,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/3627",
+      "base_commit": "6a925de6c52a4df9d6edffddfcf5f0896afcee46",
+      "merge_commit": "762253c7663e2fa8f2bedb2c72a8f7afe566ed46",
+      "source_files": [
+        "strands-py/src/strands/event_loop/event_loop.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/agent/test_agent_hooks.py"
+      ]
+    },
+    {
+      "rank": 19,
+      "status": "selected",
+      "issue_number": 3493,
+      "title": "[BUG] retrieve_offloaded_content reports failures as status success",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/3493",
+      "area": "context",
+      "fix_pr_number": 3680,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/3680",
+      "base_commit": "13990f0163c451440c4e705461ca6fcb80dc293d",
+      "merge_commit": "d723329724607130ea453fa0597418107a24611c",
+      "source_files": [
+        "strands-py/src/strands/vended_plugins/context_offloader/plugin.py",
+        "strands-py/src/strands/vended_plugins/context_offloader/search.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/vended_plugins/context_offloader/test_plugin.py",
+        "strands-py/tests/strands/vended_plugins/context_offloader/test_search.py"
+      ]
+    },
+    {
+      "rank": 20,
+      "status": "selected",
+      "issue_number": 3425,
+      "title": "[BUG] Reasoning signatures concatenate across multiple signed thinking blocks",
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/3425",
+      "area": "streaming",
+      "fix_pr_number": 3472,
+      "fix_pr_url": "https://github.com/strands-agents/harness-sdk/pull/3472",
+      "base_commit": "0e517d627202e229ed8fbb92e0d8d305341b04b2",
+      "merge_commit": "be30def912da3eae7678582867dd8797aa23538f",
+      "source_files": [
+        "strands-py/src/strands/event_loop/streaming.py"
+      ],
+      "test_files": [
+        "strands-py/tests/strands/event_loop/test_streaming.py"
+      ]
+    }
+  ]
+}

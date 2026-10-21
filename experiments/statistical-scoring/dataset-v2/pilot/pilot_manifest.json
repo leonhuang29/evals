@@ -1,0 +1,97 @@
+{
+  "manifest_version": 1,
+  "generated_at": "2026-09-30",
+  "repository": "strands-agents/harness-sdk",
+  "candidate_manifest": "../candidate_manifest.json",
+  "case_count": 5,
+  "runs_per_case": 2,
+  "judge_replays_per_run": 3,
+  "cases": [
+    {
+      "name": "4601-bedrock-tool-input",
+      "issue_number": 4601,
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4601",
+      "fix_pr_number": 4625,
+      "base_commit": "3e5e89e265aaa33580d0cc5dbe6891f5d36a7c5f",
+      "fix_commit": "226a0f247c46355c22537d13a75e63f34de42d62",
+      "prompt_file": "issue_tasks/4601-bedrock-tool-input.md",
+      "prompt_sha256": "87e6d2e795874c013f501f2c77ba9acb179332f4a2467088df72a974602f02e1",
+      "reference_file": "references/4601-bedrock-tool-input.md",
+      "reference_sha256": "737caed8472f0e355974833e6b0110f284a5230367abdb2accda754b6fe79803",
+      "hidden_test_file": "hidden_tests/test_issue_4601.py",
+      "hidden_test_target": "strands-py/tests/statistical_evals_hidden/test_issue_4601.py",
+      "source_files": [
+        "strands-py/src/strands/models/bedrock.py"
+      ]
+    },
+    {
+      "name": "4411-graph-finalization",
+      "issue_number": 4411,
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4411",
+      "fix_pr_number": 4580,
+      "base_commit": "b8a2e5c00cc145b394291f600173c3abff1bf070",
+      "fix_commit": "3d4cf9a151de50ba85a634d4564fd3b053987e50",
+      "prompt_file": "issue_tasks/4411-graph-finalization.md",
+      "prompt_sha256": "047fdf605a30d450a7e326017717501ddac4e27356f2ebe7037b99b880abea86",
+      "reference_file": "references/4411-graph-finalization.md",
+      "reference_sha256": "7ea4353c91500b978e257e7a055f0516dc6dd2528d5f368e0f96fa1ffdfd5a20",
+      "hidden_test_file": "hidden_tests/test_issue_4411.py",
+      "hidden_test_target": "strands-py/tests/statistical_evals_hidden/test_issue_4411.py",
+      "source_files": [
+        "strands-py/src/strands/multiagent/graph.py"
+      ]
+    },
+    {
+      "name": "4354-unrecognized-limits",
+      "issue_number": 4354,
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4354",
+      "fix_pr_number": 4355,
+      "base_commit": "a59b124393fbcd3e89051ecc965d84a1c396f5bd",
+      "fix_commit": "534e8b6a76bcad231122050798c575e36771a014",
+      "prompt_file": "issue_tasks/4354-unrecognized-limits.md",
+      "prompt_sha256": "e7286d122e792bdc0e6ce0b6fab38fced7d398c945db3e6ac94e0283c38f974d",
+      "reference_file": "references/4354-unrecognized-limits.md",
+      "reference_sha256": "333b4af4174628bd49131b64b6900d8ee2c372990c025d42ef897019389cb686",
+      "hidden_test_file": "hidden_tests/test_issue_4354.py",
+      "hidden_test_target": "strands-py/tests/statistical_evals_hidden/test_issue_4354.py",
+      "source_files": [
+        "strands-py/src/strands/agent/agent.py",
+        "strands-py/src/strands/types/agent.py"
+      ]
+    },
+    {
+      "name": "4155-skill-yaml-error",
+      "issue_number": 4155,
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/4155",
+      "fix_pr_number": 4192,
+      "base_commit": "7bda6c70e71cd07279470268c3d3b3f4b36adf53",
+      "fix_commit": "9663bcfa538b12599471b8f8ad62cb271311397d",
+      "prompt_file": "issue_tasks/4155-skill-yaml-error.md",
+      "prompt_sha256": "c4333c32a259ee596c96a9bb7ba48c5df1e9b28b5eaec0efc95295d8a32c72de",
+      "reference_file": "references/4155-skill-yaml-error.md",
+      "reference_sha256": "c7d8ca34b58cd95d25dbf4ab7a03dea716a656447b06f3c0a0138f34761f029e",
+      "hidden_test_file": "hidden_tests/test_issue_4155.py",
+      "hidden_test_target": "strands-py/tests/statistical_evals_hidden/test_issue_4155.py",
+      "source_files": [
+        "strands-py/src/strands/vended_plugins/skills/skill.py"
+      ]
+    },
+    {
+      "name": "3910-schema-mutation",
+      "issue_number": 3910,
+      "issue_url": "https://github.com/strands-agents/harness-sdk/issues/3910",
+      "fix_pr_number": 4426,
+      "base_commit": "431d1372f8f70f50ffbe21f5b8a75555c374c086",
+      "fix_commit": "5e46a48de927e8456fd846de24cf1fbfc3382676",
+      "prompt_file": "issue_tasks/3910-schema-mutation.md",
+      "prompt_sha256": "0ac1d9296106fd2aa40f2b30bf4f9c393805a8b4a7cadbb512d63c867f2c8c35",
+      "reference_file": "references/3910-schema-mutation.md",
+      "reference_sha256": "e96851d3a7a0f69b65bf0b41e520482749b67fa14525ab0c10f1aa63009d2071",
+      "hidden_test_file": "hidden_tests/test_issue_3910.py",
+      "hidden_test_target": "strands-py/tests/statistical_evals_hidden/test_issue_3910.py",
+      "source_files": [
+        "strands-py/src/strands/tools/tools.py"
+      ]
+    }
+  ]
+}

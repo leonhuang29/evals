@@ -1,0 +1,113 @@
+{
+  "run_id": "4354-unrecognized-limits-t0",
+  "case_id": "4354-unrecognized-limits",
+  "issue_number": 4354,
+  "trial": 0,
+  "session_id": "4354-unrecognized-limits-t0",
+  "base_commit": "a59b124393fbcd3e89051ecc965d84a1c396f5bd",
+  "fix_commit": "534e8b6a76bcad231122050798c575e36771a014",
+  "workdir": "/Users/leyhuang/stan/stan-py/archive/statistical-evals/dataset-v2/pilot/worktrees/4354-unrecognized-limits-t0",
+  "started_at": "2026-09-30T15:41:58.767141+00:00",
+  "agent_configuration": {
+    "model": "bedrock/global.anthropic.claude-sonnet-4-6",
+    "resolved_model_id": "global.anthropic.claude-sonnet-4-6",
+    "region": "us-east-1",
+    "thinking": "medium",
+    "temperature": null,
+    "builtin_tools": [
+      "shell",
+      "read",
+      "write",
+      "edit"
+    ],
+    "builtin_plugins": [
+      "todos",
+      "environment"
+    ],
+    "background_tasks": false,
+    "caching": "auto",
+    "context_management": "auto",
+    "session": false,
+    "memory": false,
+    "skills_dir": null,
+    "runs_per_case": 2,
+    "max_concurrent_runs": 2,
+    "timeout_seconds": 1800
+  },
+  "experiment_config_sha256": "3001f64f479bda1e60565817c1e973663f4193f6484bfb0286a265dce7d43fea",
+  "pilot_manifest_sha256": "304e04dd1f4b1f65944b853b95442ef25bad022ab2e7c720b4e41bf0b7fcd254",
+  "runner_sha256": "fd666f13ade2f0b5505e28df4a2f6ac5e5592dc5e8f37cdf679ff3ece9163ea9",
+  "environment": {
+    "python": "3.12.14 (main, Sep  1 2026, 14:09:38) [Clang 22.1.3 ]",
+    "platform": "macOS-26.7-arm64-arm-64bit",
+    "strands_agents_version": "1.56.0",
+    "strands_stan_version": "0.0.1.dev80+g510a88d61",
+    "strands_evals_version": "1.3.0",
+    "stan_commit": "510a88d617cee1d4fded7abe5e978e7227e218e0"
+  },
+  "resolved_model_config": {
+    "model_id": "global.anthropic.claude-sonnet-4-6",
+    "include_tool_result_status": "auto",
+    "additional_request_fields": {
+      "thinking": {
+        "type": "adaptive",
+        "display": "summarized"
+      },
+      "output_config": {
+        "effort": "medium"
+      }
+    },
+    "max_tokens": 128000,
+    "cache_config": "CacheConfig(strategy='auto', ttl=None, system_prompt_ttl=True, cache_key=None, tools_ttl=True)",
+    "context_window_limit": 1000000
+  },
+  "output": "## Summary\n\n### Root cause\n\n`Agent._validate_limits` in `src/strands/agent/agent.py` only iterated over the three *known* keys (`turns`, `output_tokens`, `total_tokens`) to validate their values. Any extra key supplied by the caller (e.g. `max_turns`) was simply never examined and therefore silently ignored \u2014 no cap was applied, contradicting the caller's intent.\n\n### Changes\n\n**`src/strands/agent/agent.py` \u2014 `_validate_limits` (lines ~1864\u20131872)**\n\nAdded an unknown-key guard before the per-value validation loop:\n\n```python\n_VALID_LIMIT_KEYS = frozenset({\"turns\", \"output_tokens\", \"total_tokens\"})\nunknown = set(limits.keys()) - _VALID_LIMIT_KEYS\nif unknown:\n    pretty = \", \".join(sorted(f\"{k!r}\" for k in unknown))\n    raise TypeError(\n        f\"limits received unknown key(s): {pretty}; valid keys are: {sorted(_VALID_LIMIT_KEYS)}\"\n    )\n```\n\nThis fires before any model work begins, reports *all* bad keys at once, and leaves the three valid keys and their existing value-validation unchanged.\n\n**`tests/strands/agent/test_agent_limits.py`** \u2014 three new tests appended:\n\n| Test | What it checks |\n|---|---|\n| `test_unknown_limit_key_raises_before_model_is_called` | Regression: `{\"max_turns\": 3}` raises `TypeError` immediately (the mocked model is never called) |\n| `test_multiple_unknown_limit_keys_are_all_reported` | Both `max_turns` and `max_tokens` appear in the single error message |\n| `test_valid_keys_still_work_after_unknown_key_fix` | All three valid keys (`turns`, `output_tokens`, `total_tokens`) are still accepted without error |\n\n### Verification\n\n```\n22 passed in 0.40s\n```\nAll pre-existing tests continue to pass, and the three new regression tests pass with the fix applied (they fail on the original code).\n",
+  "duration_seconds": 57.626,
+  "finished_at": "2026-09-30T15:42:56.480109+00:00",
+  "finished_span_count": 48,
+  "mapped_trace_count": 1,
+  "diff": "diff --git a/strands-py/src/strands/agent/agent.py b/strands-py/src/strands/agent/agent.py\nindex 9f6df7d30..01642db55 100644\n--- a/strands-py/src/strands/agent/agent.py\n+++ b/strands-py/src/strands/agent/agent.py\n@@ -1859,10 +1859,15 @@ class Agent(AgentBase, LocalAgent):\n             limits: The caps to validate, or ``None`` to skip.\n \n         Raises:\n-            TypeError: If any value is not a positive int.\n+            TypeError: If any key is not a recognised limit name, or if any value is not a positive int.\n         \"\"\"\n         if not limits:\n             return\n+        _VALID_LIMIT_KEYS = frozenset({\"turns\", \"output_tokens\", \"total_tokens\"})\n+        unknown = set(limits.keys()) - _VALID_LIMIT_KEYS\n+        if unknown:\n+            pretty = \", \".join(sorted(f\"{k!r}\" for k in unknown))\n+            raise TypeError(f\"limits received unknown key(s): {pretty}; valid keys are: {sorted(_VALID_LIMIT_KEYS)}\")\n         for key in (\"turns\", \"output_tokens\", \"total_tokens\"):\n             if key not in limits:\n                 continue\ndiff --git a/strands-py/tests/strands/agent/test_agent_limits.py b/strands-py/tests/strands/agent/test_agent_limits.py\nindex 4f817a19b..bceb73bcc 100644\n--- a/strands-py/tests/strands/agent/test_agent_limits.py\n+++ b/strands-py/tests/strands/agent/test_agent_limits.py\n@@ -246,3 +246,43 @@ async def test_invocation_hooks_fire_when_limit_trips():\n \n     assert result.stop_reason == \"limit_turns\"\n     assert seen == [\"before\", \"after\"]\n+\n+\n+@pytest.mark.asyncio\n+async def test_unknown_limit_key_raises_before_model_is_called():\n+    \"\"\"An unrecognised key such as ``max_turns`` must raise ``TypeError`` immediately.\n+\n+    This is a regression test for issue #4354: previously the key was silently\n+    ignored, leaving the invocation uncapped even though the caller expected a bound.\n+    \"\"\"\n+    final = {\"role\": \"assistant\", \"content\": [{\"text\": \"done\"}]}\n+    # The mocked model should never be called; if it is, the test would also fail\n+    # because the model raises on an unexpected extra call.\n+    agent = Agent(model=MockedModelProvider([final], [_usage(5, 5)]))\n+\n+    with pytest.raises(TypeError, match=\"max_turns\"):\n+        await agent.invoke_async(\"go\", limits={\"max_turns\": 3})\n+\n+\n+@pytest.mark.asyncio\n+async def test_multiple_unknown_limit_keys_are_all_reported():\n+    \"\"\"All unrecognised keys are surfaced in one ``TypeError``, not just the first.\"\"\"\n+    final = {\"role\": \"assistant\", \"content\": [{\"text\": \"done\"}]}\n+    agent = Agent(model=MockedModelProvider([final], [_usage(5, 5)]))\n+\n+    with pytest.raises(TypeError, match=\"max_turns\") as exc_info:\n+        await agent.invoke_async(\"go\", limits={\"max_turns\": 3, \"max_tokens\": 100})  # type: ignore[arg-type]\n+\n+    assert \"max_tokens\" in str(exc_info.value)\n+\n+\n+@pytest.mark.asyncio\n+async def test_valid_keys_still_work_after_unknown_key_fix():\n+    \"\"\"Ensure the unknown-key guard does not break acceptance of the three valid keys.\"\"\"\n+    final = {\"role\": \"assistant\", \"content\": [{\"text\": \"done\"}]}\n+    agent = Agent(model=MockedModelProvider([final], [_usage(5, 5)]))\n+\n+    # Should not raise; valid keys must still be accepted.\n+    result = await agent.invoke_async(\"go\", limits={\"turns\": 10, \"output_tokens\": 500, \"total_tokens\": 1000})\n+\n+    assert result.stop_reason == \"end_turn\"\n",
+  "diff_sha256": "48e317aa51ffba6d0a9bad8a4ee04c0bed6d43ab9a3ecae00b0f92932eefd6a9",
+  "changed_files": [
+    "strands-py/src/strands/agent/agent.py",
+    "strands-py/tests/strands/agent/test_agent_limits.py"
+  ],
+  "diff_stat": " strands-py/src/strands/agent/agent.py              |  7 +++-\n .../tests/strands/agent/test_agent_limits.py       | 40 ++++++++++++++++++++++\n 2 files changed, 46 insertions(+), 1 deletion(-)\n",
+  "hidden_test": {
+    "status": "passed",
+    "return_code": 0,
+    "command": [
+      "/Users/leyhuang/stan/stan-py/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-c",
+      "/dev/null",
+      "--confcutdir",
+      "tests/statistical_evals_hidden",
+      "tests/statistical_evals_hidden/test_issue_4354.py"
+    ],
+    "output_tail": "....                                                                     [100%]\n4 passed in 0.62s\n",
+    "checked_at": "2026-09-30T15:49:20.632704+00:00",
+    "test_sha256": "8af2b5e4749436c0a3dccdba50c0ea70d776856349a4ebfa8ab1521c0f3b3ad0"
+  },
+  "orchestrator_status": "ok",
+  "hidden_test_initial": {
+    "status": "failed",
+    "return_code": 1,
+    "command": [
+      "/Users/leyhuang/stan/stan-py/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-c",
+      "/dev/null",
+      "--confcutdir",
+      "tests/statistical_evals_hidden",
+      "tests/statistical_evals_hidden/test_issue_4354.py"
+    ],
+    "output_tail": "_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nlimits = {'turn': 3}\n\n    @staticmethod\n    def _validate_limits(limits: Limits | None) -> None:\n        \"\"\"Validate per-invocation budget caps before any model work begins.\n    \n        Each cap, when set, must be a positive ``int``. Booleans are rejected because\n        ``bool`` is a subclass of ``int`` in Python and ``True``/``False`` would\n        otherwise pass through as ``1``/``0``, silently no-op'ing or tripping\n        immediately.\n    \n        Args:\n            limits: The caps to validate, or ``None`` to skip.\n    \n        Raises:\n            TypeError: If any key is not a recognised limit name, or if any value is not a positive int.\n        \"\"\"\n        if not limits:\n            return\n        _VALID_LIMIT_KEYS = frozenset({\"turns\", \"output_tokens\", \"total_tokens\"})\n        unknown = set(limits.keys()) - _VALID_LIMIT_KEYS\n        if unknown:\n            pretty = \", \".join(sorted(f\"{k!r}\" for k in unknown))\n>           raise TypeError(f\"limits received unknown key(s): {pretty}; valid keys are: {sorted(_VALID_LIMIT_KEYS)}\")\nE           TypeError: limits received unknown key(s): 'turn'; valid keys are: ['output_tokens', 'total_tokens', 'turns']\n\nsrc/strands/agent/agent.py:1870: TypeError\n\nDuring handling of the above exception, another exception occurred:\n\nlimits = {'turn': 3}\n\n    @pytest.mark.parametrize(\n        \"limits\",\n        [\n            {\"max_turns\": 3},\n            {\"turn\": 3},\n            {\"turns\": 3, \"max_tokens\": 100},\n        ],\n    )\n    def test_unrecognized_limit_keys_raise_before_invocation(limits):\n>       with pytest.raises(TypeError, match=\"not recognized\"):\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE       AssertionError: Regex pattern did not match.\nE        Regex: 'not recognized'\nE        Input: \"limits received unknown key(s): 'turn'; valid keys are: ['output_tokens', 'total_tokens', 'turns']\"\n\ntests/statistical_evals_hidden/test_issue_4354.py:14: AssertionError\n________ test_unrecognized_limit_keys_raise_before_invocation[limits2] _________\n\nlimits = {'max_tokens': 100, 'turns': 3}\n\n    @pytest.mark.parametrize(\n        \"limits\",\n        [\n            {\"max_turns\": 3},\n            {\"turn\": 3},\n            {\"turns\": 3, \"max_tokens\": 100},\n        ],\n    )\n    def test_unrecognized_limit_keys_raise_before_invocation(limits):\n        with pytest.raises(TypeError, match=\"not recognized\"):\n>           Agent._validate_limits(limits)\n\ntests/statistical_evals_hidden/test_issue_4354.py:15: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nlimits = {'max_tokens': 100, 'turns': 3}\n\n    @staticmethod\n    def _validate_limits(limits: Limits | None) -> None:\n        \"\"\"Validate per-invocation budget caps before any model work begins.\n    \n        Each cap, when set, must be a positive ``int``. Booleans are rejected because\n        ``bool`` is a subclass of ``int`` in Python and ``True``/``False`` would\n        otherwise pass through as ``1``/``0``, silently no-op'ing or tripping\n        immediately.\n    \n        Args:\n            limits: The caps to validate, or ``None`` to skip.\n    \n        Raises:\n            TypeError: If any key is not a recognised limit name, or if any value is not a positive int.\n        \"\"\"\n        if not limits:\n            return\n        _VALID_LIMIT_KEYS = frozenset({\"turns\", \"output_tokens\", \"total_tokens\"})\n        unknown = set(limits.keys()) - _VALID_LIMIT_KEYS\n        if unknown:\n            pretty = \", \".join(sorted(f\"{k!r}\" for k in unknown))\n>           raise TypeError(f\"limits received unknown key(s): {pretty}; valid keys are: {sorted(_VALID_LIMIT_KEYS)}\")\nE           TypeError: limits received unknown key(s): 'max_tokens'; valid keys are: ['output_tokens', 'total_tokens', 'turns']\n\nsrc/strands/agent/agent.py:1870: TypeError\n\nDuring handling of the above exception, another exception occurred:\n\nlimits = {'max_tokens': 100, 'turns': 3}\n\n    @pytest.mark.parametrize(\n        \"limits\",\n        [\n            {\"max_turns\": 3},\n            {\"turn\": 3},\n            {\"turns\": 3, \"max_tokens\": 100},\n        ],\n    )\n    def test_unrecognized_limit_keys_raise_before_invocation(limits):\n>       with pytest.raises(TypeError, match=\"not recognized\"):\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE       AssertionError: Regex pattern did not match.\nE        Regex: 'not recognized'\nE        Input: \"limits received unknown key(s): 'max_tokens'; valid keys are: ['output_tokens', 'total_tokens', 'turns']\"\n\ntests/statistical_evals_hidden/test_issue_4354.py:14: AssertionError\n=============================== warnings summary ===============================\n../../../../../../../.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475\n  /Users/leyhuang/stan/stan-py/.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /dev/.pytest_cache/v/cache/nodeids: [Errno 1] Operation not permitted: '/dev/pytest-cache-files-tgvlqran'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n../../../../../../../.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:429\n  /Users/leyhuang/stan/stan-py/.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:429: PytestCacheWarning: could not create cache path /dev/.pytest_cache/v/cache/lastfailed: [Errno 1] Operation not permitted: '/dev/pytest-cache-files-59_lr58y'\n    config.cache.set(\"cache/lastfailed\", self.lastfailed)\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED ../../../../../../../../../../../dev::test_unrecognized_limit_keys_raise_before_invocation[limits0]\nFAILED ../../../../../../../../../../../dev::test_unrecognized_limit_keys_raise_before_invocation[limits1]\nFAILED ../../../../../../../../../../../dev::test_unrecognized_limit_keys_raise_before_invocation[limits2]\n3 failed, 1 passed, 2 warnings in 0.53s\n"
+  }
+}

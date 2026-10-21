@@ -1,0 +1,113 @@
+{
+  "run_id": "4411-graph-finalization-t0",
+  "case_id": "4411-graph-finalization",
+  "issue_number": 4411,
+  "trial": 0,
+  "session_id": "4411-graph-finalization-t0",
+  "base_commit": "b8a2e5c00cc145b394291f600173c3abff1bf070",
+  "fix_commit": "3d4cf9a151de50ba85a634d4564fd3b053987e50",
+  "workdir": "/Users/leyhuang/stan/stan-py/archive/statistical-evals/dataset-v2/pilot/worktrees/4411-graph-finalization-t0",
+  "started_at": "2026-09-30T15:38:13.271475+00:00",
+  "agent_configuration": {
+    "model": "bedrock/global.anthropic.claude-sonnet-4-6",
+    "resolved_model_id": "global.anthropic.claude-sonnet-4-6",
+    "region": "us-east-1",
+    "thinking": "medium",
+    "temperature": null,
+    "builtin_tools": [
+      "shell",
+      "read",
+      "write",
+      "edit"
+    ],
+    "builtin_plugins": [
+      "todos",
+      "environment"
+    ],
+    "background_tasks": false,
+    "caching": "auto",
+    "context_management": "auto",
+    "session": false,
+    "memory": false,
+    "skills_dir": null,
+    "runs_per_case": 2,
+    "max_concurrent_runs": 2,
+    "timeout_seconds": 1800
+  },
+  "experiment_config_sha256": "3001f64f479bda1e60565817c1e973663f4193f6484bfb0286a265dce7d43fea",
+  "pilot_manifest_sha256": "304e04dd1f4b1f65944b853b95442ef25bad022ab2e7c720b4e41bf0b7fcd254",
+  "runner_sha256": "fd666f13ade2f0b5505e28df4a2f6ac5e5592dc5e8f37cdf679ff3ece9163ea9",
+  "environment": {
+    "python": "3.12.14 (main, Sep  1 2026, 14:09:38) [Clang 22.1.3 ]",
+    "platform": "macOS-26.7-arm64-arm-64bit",
+    "strands_agents_version": "1.56.0",
+    "strands_stan_version": "0.0.1.dev80+g510a88d61",
+    "strands_evals_version": "1.3.0",
+    "stan_commit": "510a88d617cee1d4fded7abe5e978e7227e218e0"
+  },
+  "resolved_model_config": {
+    "model_id": "global.anthropic.claude-sonnet-4-6",
+    "include_tool_result_status": "auto",
+    "additional_request_fields": {
+      "thinking": {
+        "type": "adaptive",
+        "display": "summarized"
+      },
+      "output_config": {
+        "effort": "medium"
+      }
+    },
+    "max_tokens": 128000,
+    "cache_config": "CacheConfig(strategy='auto', ttl=None, system_prompt_ttl=True, cache_key=None, tools_ttl=True)",
+    "context_window_limit": 1000000
+  },
+  "output": "All 89 tests pass (83 pre-existing + 6 new). Here's the summary.\n\n---\n\n## Root cause\n\nIn `Graph.stream_async()` (in `src/strands/multiagent/graph.py`) the terminal result was yielded **inside** the `try` block, while `AfterMultiAgentInvocationEvent` was only invoked in the `finally` block that follows. Because `yield` suspends the generator and returns control to the caller, any caller that stops iterating upon seeing the result would prevent the `finally` from ever running synchronously\u2014so cleanup hooks never fired from the caller's perspective. Two additional bugs were bundled with this:\n\n* `AfterMultiAgentInvocationEvent(self)` was constructed **without** `invocation_state`, so hook callbacks always saw `None`.\n* Because the result was yielded before `finally`, a failing cleanup hook could not prevent the result from reaching the caller.\n\nThe `Swarm` implementation already had the correct pattern; `Graph` had not been brought in line with it.\n\n---\n\n## Changes\n\n### `src/strands/multiagent/graph.py`\n\nRestructured the `try/except/finally` block in `stream_async` to match the pattern already used by `Swarm`:\n\n```python\n# Before (buggy)\ntry:\n    async for event in self._execute_graph(...):\n        yield event.as_dict()\n    # status update \u2026\n    result = self._build_result(interrupts)\n    yield MultiAgentResultEvent(result=result).as_dict()   # \u2190 before cleanup\nexcept Exception:\n    raise\nfinally:\n    self.state.execution_time = \u2026\n    await self.hooks.invoke_callbacks_async(AfterMultiAgentInvocationEvent(self))  # \u2190 no invocation_state\n    \u2026\n\n# After (fixed)\ntry:\n    async for event in self._execute_graph(...):\n        yield event.as_dict()\n    # status update \u2026\nexcept Exception:\n    raise\nfinally:\n    self.state.execution_time = \u2026\n    await self.hooks.invoke_callbacks_async(AfterMultiAgentInvocationEvent(self, invocation_state))  # \u2190 with state\n    \u2026\n\n# Yield result AFTER cleanup has succeeded\nresult = self._build_result(interrupts)\nyield MultiAgentResultEvent(result=result).as_dict()\n```\n\nTwo-line diff in prose:\n1. Moved `_build_result` / `yield MultiAgentResultEvent` **out** of the `try` block to after the `finally`.\n2. Added `invocation_state` argument to `AfterMultiAgentInvocationEvent(self, invocation_state)`.\n\n### `tests/strands/multiagent/test_graph.py`\n\nAdded `TestStreamAsyncLifecycle` (6 tests) covering all four lifecycle requirements:\n\n| Test | Requirement |\n|---|---|\n| `test_after_hook_fires_before_result_event` | Hook has run before the result dict appears in the stream |\n| `test_after_hook_fires_exactly_once_on_success` | Hook fires exactly once on a successful run |\n| `test_after_event_carries_invocation_state` | `AfterMultiAgentInvocationEvent.invocation_state` is the same object passed to `stream_async` |\n| `test_after_hook_fires_on_execution_error` | Hook fires even when the graph raises an exception |\n| `test_after_hook_fires_on_early_stream_close` | Hook fires when the caller closes the generator early |\n| `test_result_not_yielded_when_cleanup_raises` | Result is never exposed if cleanup itself raises |\n",
+  "duration_seconds": 222.853,
+  "finished_at": "2026-09-30T15:41:56.232392+00:00",
+  "finished_span_count": 137,
+  "mapped_trace_count": 1,
+  "diff": "diff --git a/strands-py/src/strands/multiagent/graph.py b/strands-py/src/strands/multiagent/graph.py\nindex 35f4d8c68..0cc6a8526 100644\n--- a/strands-py/src/strands/multiagent/graph.py\n+++ b/strands-py/src/strands/multiagent/graph.py\n@@ -695,22 +695,20 @@ class Graph(MultiAgentBase):\n \n                 logger.debug(\"status=<%s> | graph execution completed\", self.state.status)\n \n-                # Yield final result (consistent with Agent's AgentResultEvent format)\n-                result = self._build_result(interrupts)\n-\n-                # Use the same event format as Agent for consistency\n-                yield MultiAgentResultEvent(result=result).as_dict()\n-\n             except Exception:\n                 logger.exception(\"graph execution failed\")\n                 self.state.status = Status.FAILED\n                 raise\n             finally:\n                 self.state.execution_time = self._commit_active_interval(self.state.execution_time)\n-                await self.hooks.invoke_callbacks_async(AfterMultiAgentInvocationEvent(self))\n+                await self.hooks.invoke_callbacks_async(AfterMultiAgentInvocationEvent(self, invocation_state))\n                 self._resume_from_session = False\n                 self._resume_next_nodes.clear()\n \n+            # Yield final result after cleanup hooks have run (consistent with Agent's AgentResultEvent format)\n+            result = self._build_result(interrupts)\n+            yield MultiAgentResultEvent(result=result).as_dict()\n+\n     def _validate_graph(self, nodes: dict[str, GraphNode]) -> None:\n         \"\"\"Validate graph nodes for duplicate instances.\"\"\"\n         # Check for duplicate node instances\ndiff --git a/strands-py/tests/strands/multiagent/test_graph.py b/strands-py/tests/strands/multiagent/test_graph.py\nindex 6270de007..5f980a81a 100644\n--- a/strands-py/tests/strands/multiagent/test_graph.py\n+++ b/strands-py/tests/strands/multiagent/test_graph.py\n@@ -3545,3 +3545,233 @@ class TestResumeInFlightSibling:\n         join_input_text = \" \".join(str(block) for block in join_input)\n         assert \"From left:\" in join_input_text\n         assert \"From right:\" in join_input_text\n+\n+\n+# ---------------------------------------------------------------------------\n+# Regression tests for issue #4411\n+# \"Graph exposes its terminal result before invocation cleanup\"\n+# ---------------------------------------------------------------------------\n+\n+\n+class TestStreamAsyncLifecycle:\n+    \"\"\"Regression tests for issue #4411.\n+\n+    Lifecycle requirements that must hold:\n+    1. After-invocation hooks have run exactly once *before* the terminal result\n+       is yielded.\n+    2. AfterMultiAgentInvocationEvent carries the active invocation_state.\n+    3. Errors and explicitly closed partial streams still invoke the after hook.\n+    4. If cleanup itself fails the terminal result must not be exposed.\n+    \"\"\"\n+\n+    # ------------------------------------------------------------------\n+    # Helpers\n+    # ------------------------------------------------------------------\n+\n+    @staticmethod\n+    def _build_simple_graph() -> \"Graph\":\n+        \"\"\"One-node graph with a predictable mock agent \u2013 no real model needed.\"\"\"\n+        agent = create_mock_agent(\"node_a\", \"hello\")\n+\n+        async def _stream(*args, **kwargs):\n+            yield {\"text\": \"streaming\u2026\"}\n+            yield {\"result\": agent.return_value}\n+\n+        agent.stream_async = Mock(side_effect=_stream)\n+\n+        builder = GraphBuilder()\n+        builder.add_node(agent, \"a\")\n+        builder.set_entry_point(\"a\")\n+        return builder.build()\n+\n+    # ------------------------------------------------------------------\n+    # Requirement 1 \u2013 after hook fires *before* the terminal result event\n+    # ------------------------------------------------------------------\n+\n+    @pytest.mark.asyncio\n+    async def test_after_hook_fires_before_result_event(self, mock_strands_tracer, mock_use_span):\n+        \"\"\"AfterMultiAgentInvocationEvent must be dispatched before the result dict is yielded.\"\"\"\n+        from strands.hooks.events import AfterMultiAgentInvocationEvent\n+\n+        graph = self._build_simple_graph()\n+\n+        hook_fired_at: list[int] = []   # index into `events` when hook fired\n+        result_index: list[int] = []\n+\n+        collected: list[dict] = []\n+\n+        async def _recording_hook(event: AfterMultiAgentInvocationEvent) -> None:\n+            hook_fired_at.append(len(collected))  # snapshot *before* the yield resumes\n+\n+        graph.add_hook(_recording_hook, AfterMultiAgentInvocationEvent)\n+\n+        async for event in graph.stream_async(\"task\", {\"key\": \"val\"}):\n+            collected.append(event)\n+            if \"result\" in event and event.get(\"type\") != \"multiagent_node_stream\":\n+                result_index.append(len(collected) - 1)\n+\n+        assert hook_fired_at, \"after hook was never called\"\n+        assert result_index, \"result event was never yielded\"\n+\n+        # The hook must have fired BEFORE the result event was appended.\n+        assert hook_fired_at[0] <= result_index[0], (\n+            f\"after hook fired at collected[{hook_fired_at[0]}] \"\n+            f\"but result appeared at collected[{result_index[0]}]\"\n+        )\n+\n+    # ------------------------------------------------------------------\n+    # Requirement 1 (cont.) \u2013 after hook fires exactly once\n+    # ------------------------------------------------------------------\n+\n+    @pytest.mark.asyncio\n+    async def test_after_hook_fires_exactly_once_on_success(self, mock_strands_tracer, mock_use_span):\n+        \"\"\"AfterMultiAgentInvocationEvent must be dispatched exactly once per invocation.\"\"\"\n+        from strands.hooks.events import AfterMultiAgentInvocationEvent\n+\n+        graph = self._build_simple_graph()\n+        call_count = [0]\n+\n+        async def _count(event: AfterMultiAgentInvocationEvent) -> None:\n+            call_count[0] += 1\n+\n+        graph.add_hook(_count, AfterMultiAgentInvocationEvent)\n+\n+        async for _ in graph.stream_async(\"task\"):\n+            pass\n+\n+        assert call_count[0] == 1, f\"after hook fired {call_count[0]} time(s), expected 1\"\n+\n+    # ------------------------------------------------------------------\n+    # Requirement 2 \u2013 invocation_state is forwarded to the after event\n+    # ------------------------------------------------------------------\n+\n+    @pytest.mark.asyncio\n+    async def test_after_event_carries_invocation_state(self, mock_strands_tracer, mock_use_span):\n+        \"\"\"AfterMultiAgentInvocationEvent.invocation_state must equal the object\n+        passed to stream_async, not None and not a copy.\"\"\"\n+        from strands.hooks.events import AfterMultiAgentInvocationEvent\n+\n+        graph = self._build_simple_graph()\n+        received: list[dict | None] = []\n+\n+        async def _capture(event: AfterMultiAgentInvocationEvent) -> None:\n+            received.append(event.invocation_state)\n+\n+        graph.add_hook(_capture, AfterMultiAgentInvocationEvent)\n+\n+        my_state: dict = {\"session_id\": \"abc123\", \"user\": \"alice\"}\n+        async for _ in graph.stream_async(\"task\", my_state):\n+            pass\n+\n+        assert received, \"after hook was never called\"\n+        assert received[0] is my_state, (\n+            \"AfterMultiAgentInvocationEvent.invocation_state is not the same object \"\n+            f\"that was passed to stream_async; got {received[0]!r}\"\n+        )\n+\n+    # ------------------------------------------------------------------\n+    # Requirement 3a \u2013 after hook fires even when the graph raises\n+    # ------------------------------------------------------------------\n+\n+    @pytest.mark.asyncio\n+    async def test_after_hook_fires_on_execution_error(self, mock_strands_tracer, mock_use_span):\n+        \"\"\"AfterMultiAgentInvocationEvent must still fire when the graph raises.\"\"\"\n+        from strands.hooks.events import AfterMultiAgentInvocationEvent\n+\n+        agent = create_mock_agent(\"boom\", \"never\")\n+\n+        async def _failing_stream(*args, **kwargs):\n+            yield {\"text\": \"starting\u2026\"}\n+            raise RuntimeError(\"node exploded\")\n+\n+        agent.stream_async = Mock(side_effect=_failing_stream)\n+\n+        builder = GraphBuilder()\n+        builder.add_node(agent, \"boom\")\n+        builder.set_entry_point(\"boom\")\n+        graph = builder.build()\n+\n+        call_count = [0]\n+\n+        async def _count(event: AfterMultiAgentInvocationEvent) -> None:\n+            call_count[0] += 1\n+\n+        graph.add_hook(_count, AfterMultiAgentInvocationEvent)\n+\n+        with pytest.raises(Exception):\n+            async for _ in graph.stream_async(\"task\"):\n+                pass\n+\n+        assert call_count[0] == 1, (\n+            f\"after hook fired {call_count[0]} time(s) on error, expected 1\"\n+        )\n+\n+    # ------------------------------------------------------------------\n+    # Requirement 3b \u2013 after hook fires when the caller closes the stream early\n+    # ------------------------------------------------------------------\n+\n+    @pytest.mark.asyncio\n+    async def test_after_hook_fires_on_early_stream_close(self, mock_strands_tracer, mock_use_span):\n+        \"\"\"AfterMultiAgentInvocationEvent must fire even if the caller stops\n+        iterating before the result event is reached.\"\"\"\n+        from strands.hooks.events import AfterMultiAgentInvocationEvent\n+\n+        agent = create_mock_agent(\"node_a\", \"hello\")\n+        gate = asyncio.Event()\n+\n+        async def _slow_stream(*args, **kwargs):\n+            yield {\"text\": \"first chunk\"}\n+            await gate.wait()          # caller will close before this resolves\n+            yield {\"result\": agent.return_value}\n+\n+        agent.stream_async = Mock(side_effect=_slow_stream)\n+\n+        builder = GraphBuilder()\n+        builder.add_node(agent, \"a\")\n+        builder.set_entry_point(\"a\")\n+        graph = builder.build()\n+\n+        call_count = [0]\n+\n+        async def _count(event: AfterMultiAgentInvocationEvent) -> None:\n+            call_count[0] += 1\n+\n+        graph.add_hook(_count, AfterMultiAgentInvocationEvent)\n+\n+        # Consume one event then break (simulating an early-exit caller).\n+        async with asyncio.timeout(5):\n+            gen = graph.stream_async(\"task\")\n+            async for _ in gen:\n+                break   # stop after the first event\n+            await gen.aclose()  # explicitly close the generator\n+\n+        assert call_count[0] == 1, (\n+            f\"after hook fired {call_count[0]} time(s) on early close, expected 1\"\n+        )\n+\n+    # ------------------------------------------------------------------\n+    # Requirement 4 \u2013 if cleanup raises, the result must NOT be yielded\n+    # ------------------------------------------------------------------\n+\n+    @pytest.mark.asyncio\n+    async def test_result_not_yielded_when_cleanup_raises(self, mock_strands_tracer, mock_use_span):\n+        \"\"\"If AfterMultiAgentInvocationEvent raises, the terminal result event\n+        must not reach the caller.\"\"\"\n+        from strands.hooks.events import AfterMultiAgentInvocationEvent\n+\n+        graph = self._build_simple_graph()\n+\n+        async def _bad_cleanup(event: AfterMultiAgentInvocationEvent) -> None:\n+            raise RuntimeError(\"cleanup failure\")\n+\n+        graph.add_hook(_bad_cleanup, AfterMultiAgentInvocationEvent)\n+\n+        result_events: list[dict] = []\n+        with pytest.raises(RuntimeError, match=\"cleanup failure\"):\n+            async for event in graph.stream_async(\"task\"):\n+                if \"result\" in event and event.get(\"type\") != \"multiagent_node_stream\":\n+                    result_events.append(event)\n+\n+        assert result_events == [], (\n+            \"terminal result was exposed to the caller even though cleanup raised\"\n+        )\n",
+  "diff_sha256": "b6e55a8ab702e343798bc9456b2a882fec42ea011d3f58fc4b5237ea348799c8",
+  "changed_files": [
+    "strands-py/src/strands/multiagent/graph.py",
+    "strands-py/tests/strands/multiagent/test_graph.py"
+  ],
+  "diff_stat": " strands-py/src/strands/multiagent/graph.py        |  12 +-\n strands-py/tests/strands/multiagent/test_graph.py | 230 ++++++++++++++++++++++\n 2 files changed, 235 insertions(+), 7 deletions(-)\n",
+  "hidden_test": {
+    "status": "passed",
+    "return_code": 0,
+    "command": [
+      "/Users/leyhuang/stan/stan-py/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-c",
+      "/dev/null",
+      "--confcutdir",
+      "tests/statistical_evals_hidden",
+      "tests/statistical_evals_hidden/test_issue_4411.py"
+    ],
+    "output_tail": ".                                                                        [100%]\n1 passed in 0.50s\n",
+    "checked_at": "2026-09-30T15:49:23.494786+00:00",
+    "test_sha256": "d0327dac7421ff4d8713c434a6da0f326583f47e027baa5b4776e16b050d7598"
+  },
+  "orchestrator_status": "ok",
+  "hidden_test_initial": {
+    "status": "passed",
+    "return_code": 0,
+    "command": [
+      "/Users/leyhuang/stan/stan-py/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-c",
+      "/dev/null",
+      "--confcutdir",
+      "tests/statistical_evals_hidden",
+      "tests/statistical_evals_hidden/test_issue_4411.py"
+    ],
+    "output_tail": ".                                                                        [100%]\n=============================== warnings summary ===============================\n../../../../../../../.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475\n  /Users/leyhuang/stan/stan-py/.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /dev/.pytest_cache/v/cache/nodeids: [Errno 1] Operation not permitted: '/dev/pytest-cache-files-v5rv0402'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n1 passed, 1 warning in 0.36s\n"
+  }
+}
