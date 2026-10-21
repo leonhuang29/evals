@@ -1,8 +1,10 @@
+import json
+
 import pytest
 
 from strands_evals import Case, Experiment
 from strands_evals.evaluators import Evaluator
-from strands_evals.experimental import CalibrationResult, Calibrator
+from strands_evals.experimental import CalibrationProfile, CalibrationResult, Calibrator
 from strands_evals.experimental.calibrator._calibration import (
     _build_calibration_context,
     _step_size_fingerprint,
@@ -131,6 +133,7 @@ def test_calibrator_starts_with_equal_weights() -> None:
 
     assert calibrator.weights == {"stable": 0.5, "noisy": 0.5}
     assert calibrator.is_fitted is False
+    assert calibrator.profile is None
     assert calibrator.status == "uncalibrated"
     assert calibrator.score(
         _repeat_report(
@@ -155,6 +158,73 @@ def test_fit_records_repetition_design() -> None:
         "agent_runs": 2,
         "judge_replays": 2,
     }
+    assert calibrator.profile is not None
+    assert calibrator.profile.case_count == 2
+    assert calibrator.profile.agent_runs == 2
+    assert calibrator.profile.judge_replays == 2
+
+
+def test_calibrator_restores_fitted_state_from_profile() -> None:
+    reports = _calibration_reports()
+    context = {
+        "version": "1",
+        "dataset": "dataset-hash",
+        "evaluators": "evaluator-hash",
+        "step_sizes": _step_size_fingerprint({"stable": 0.25, "noisy": 0.25}),
+        "overall": "overall-hash",
+    }
+    for run_reports in reports:
+        for report in run_reports:
+            report.calibration_context = dict(context)
+    original = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+    original.fit(reports, bootstrap_replicates=20, bootstrap_seed=42)
+    profile = original.profile
+    assert profile is not None
+
+    restored = Calibrator.from_profile(profile)
+
+    assert restored.profile == profile
+    assert restored.weights == original.weights
+    assert restored.variance_components == original.variance_components
+    assert restored.reliabilities == original.reliabilities
+    assert restored.candidate_weights == original.candidate_weights
+    assert restored.calibration_design == original.calibration_design
+    assert restored.score(reports) == pytest.approx(original.score(reports))
+
+
+def test_calibrator_restores_context_free_fitted_state_from_profile() -> None:
+    reports = _calibration_reports()
+    original = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+    original.fit(reports)
+    profile = original.profile
+    assert profile is not None
+    assert profile.calibration_context is None
+    assert profile.report_structure_fingerprint is not None
+    assert "case-a" not in json.dumps(profile.to_dict())
+
+    restored = Calibrator.from_profile(CalibrationProfile.from_dict(profile.to_dict()))
+
+    assert restored.score(reports) == pytest.approx(original.score(reports))
+
+
+def test_restored_context_free_profile_rejects_changed_report_structure() -> None:
+    original = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+    original.fit(_calibration_reports())
+    profile = original.profile
+    assert profile is not None
+    restored = Calibrator.from_profile(profile)
+    changed_cases = _report(
+        {
+            "stable": {"case-x": 0.0, "case-y": 1.0},
+            "noisy": {"case-x": 1.0, "case-y": 1.0},
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="scoring report structure is incompatible with the fitted calibration",
+    ):
+        restored.score(_repeat_report(changed_cases))
 
 
 def test_fit_records_calibration_context() -> None:

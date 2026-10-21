@@ -105,6 +105,7 @@ strands-evals/
 │   │   ├── calibrator/                       # Statistical evaluator calibration
 │   │   │   ├── __init__.py                   # Calibration public exports
 │   │   │   ├── calibration.py                # Public calibration facade
+│   │   │   ├── calibration_profile.py        # Versioned calibration profile schema
 │   │   │   └── _calibration.py               # Private data/statistics helpers
 │   │   └── redteam/                          # Adversarial / red-team evaluation
 │   │       ├── README.md                     # Module quick-start + walkthrough
@@ -220,6 +221,7 @@ strands-evals/
 │   ├── experimental/
 │   │   ├── calibrator/                       # Mirrors experimental/calibrator/
 │   │   │   ├── test_calibration.py
+│   │   │   ├── test_calibration_profile.py
 │   │   │   └── test_calibration_customer_workflow.py
 │   │   └── redteam/                          # Mirrors src/strands_evals/experimental/redteam/
 │   ├── simulation/
