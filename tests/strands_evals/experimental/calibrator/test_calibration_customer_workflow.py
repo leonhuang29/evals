@@ -6,6 +6,7 @@ from strands_evals import Case, Experiment
 from strands_evals.evaluators import Evaluator
 from strands_evals.experimental import CalibrationProfile, Calibrator, ProfileCompatibility
 from strands_evals.types import EvaluationData, EvaluationOutput
+from strands_evals.types.evaluation_report import EvaluationReport
 
 
 class _StableQualityEvaluator(Evaluator[str, str]):
@@ -39,6 +40,22 @@ class _ReplayNoisyEvaluator(Evaluator[str, str]):
 
 def _format_number(value: float | int | None) -> str:
     return "undefined" if value is None else f"{float(value):.3f}"
+
+
+def _historical_reports(
+    reports_by_run: list[list[EvaluationReport]],
+) -> list[list[EvaluationReport]]:
+    historical = [[report.model_copy(deep=True) for report in replay_reports] for replay_reports in reports_by_run]
+    historical_scores = {
+        "stable-quality": 0.25,
+        "replay-noisy": 1.0,
+    }
+    for replay_reports in historical:
+        for report in replay_reports:
+            report.scores = [historical_scores[str(case["evaluator"])] for case in report.cases]
+            report.test_passes = [score >= 0.5 for score in report.scores]
+            report.overall_score = sum(report.scores) / len(report.scores)
+    return historical
 
 
 def test_customer_can_run_and_inspect_calibration(tmp_path) -> None:
@@ -147,6 +164,31 @@ def test_customer_can_run_and_inspect_calibration(tmp_path) -> None:
     assert restored_calibrator.variance_components == calibrator.variance_components
     assert restored_calibrator.calibration_design == calibrator.calibration_design
 
+    historical_reports = _historical_reports(result.reports_by_run)
+    historical_profile = restored_calibrator.profile
+    historical_score = restored_calibrator.score(historical_reports)
+    historical_candidates = restored_calibrator.score_candidates(historical_reports)
+
+    assert historical_score == pytest.approx(0.25)
+    assert historical_candidates["equal"] == pytest.approx(0.625)
+    assert historical_candidates["inverse_sqrt_step"] == pytest.approx(0.25)
+    assert restored_calibrator.profile == historical_profile
+    assert restored_calibrator.weights == calibrator.weights
+
+    incompatible_reports = [
+        [report.model_copy(deep=True) for report in replay_reports] for replay_reports in historical_reports
+    ]
+    for replay_reports in incompatible_reports:
+        for report in replay_reports:
+            assert report.calibration_context is not None
+            report.calibration_context["dataset"] = "different-dataset"
+
+    with pytest.raises(
+        ValueError,
+        match="scoring calibration context is incompatible.*dataset",
+    ):
+        restored_calibrator.score(incompatible_reports)
+
     stable_weight_interval = calibrator.candidate_weight_intervals["inverse_sqrt_step"]["stable-quality"]
     noisy_weight_interval = calibrator.candidate_weight_intervals["inverse_sqrt_step"]["replay-noisy"]
     score_interval = calibrator.composite_score_intervals["inverse_sqrt_step"]
@@ -207,6 +249,12 @@ def test_customer_can_run_and_inspect_calibration(tmp_path) -> None:
                 f"  stored case count:             {profile.case_count}",
                 f"  stored evaluator count:        {len(profile.weights)}",
                 "",
+                "Historical report recomputation",
+                f"  equal-weight score:            {historical_candidates['equal']:.3f}",
+                f"  saved-profile score:           {historical_score:.3f}",
+                "  profile refit during scoring:  no",
+                "  incompatible dataset rejected: yes",
+                "",
                 "Verified behavior",
                 "  [PASS] judge replays reused fixed agent outputs",
                 "  [PASS] stable case signal received full learned weight",
@@ -215,6 +263,8 @@ def test_customer_can_run_and_inspect_calibration(tmp_path) -> None:
                 "  [PASS] profile round-tripped through deterministic JSON",
                 "  [PASS] restored calibrator preserved weights and diagnostics",
                 "  [PASS] compatible profile was accepted by a fresh calibrator",
+                "  [PASS] historical reports were rescored with frozen weights",
+                "  [PASS] incompatible historical reports were rejected",
             ]
         )
         + "\n"
