@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="650" viewBox="0 0 1600 650" role="img" aria-labelledby="title description">
+  <title id="title">High-level evaluation calibration workflow</title>
+  <desc id="description">Five steps: run an evaluation, produce an equal-weight uncalibrated score, collect repeated observations, learn weights and uncertainty, and apply a versioned calibration profile.</desc>
+  <defs>
+    <pattern id="grid" width="34" height="34" patternUnits="userSpaceOnUse">
+      <path d="M 34 0 L 0 0 0 34" fill="none" stroke="#d8ddd7" stroke-width="1" opacity="0.35"/>
+    </pattern>
+    <filter id="shadow" x="-15%" y="-15%" width="130%" height="140%">
+      <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#173042" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#526b74"/>
+    </marker>
+    <marker id="arrow-teal" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#0b8d82"/>
+    </marker>
+    <style>
+      .title { font: 700 42px "Avenir Next", "Helvetica Neue", sans-serif; fill: #173042; }
+      .subtitle { font: 400 20px "Avenir Next", "Helvetica Neue", sans-serif; fill: #5b6f76; }
+      .eyebrow { font: 700 15px "Avenir Next", "Helvetica Neue", sans-serif; letter-spacing: 1.8px; fill: #0b8d82; }
+      .card-title { font: 700 24px "Avenir Next", "Helvetica Neue", sans-serif; fill: #173042; }
+      .card-text { font: 400 17px "Avenir Next", "Helvetica Neue", sans-serif; fill: #5b6f76; }
+      .dark-title { font: 700 24px "Avenir Next", "Helvetica Neue", sans-serif; fill: #fffdf7; }
+      .dark-text { font: 500 17px "Avenir Next", "Helvetica Neue", sans-serif; fill: #dff2ef; }
+      .number { font: 700 18px "Avenir Next", "Helvetica Neue", sans-serif; fill: #fff; }
+      .arrow { fill: none; stroke: #526b74; stroke-width: 4; marker-end: url(#arrow); }
+      .loop { fill: none; stroke: #0b8d82; stroke-width: 4; marker-end: url(#arrow-teal); }
+      .loop-label { font: 700 16px "Avenir Next", "Helvetica Neue", sans-serif; fill: #0b8d82; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="650" fill="#f6f3ea"/>
+  <rect width="1600" height="650" fill="url(#grid)"/>
+  <circle cx="1530" cy="40" r="170" fill="#e4a853" opacity="0.12"/>
+  <circle cx="40" cy="635" r="150" fill="#0d9488" opacity="0.09"/>
+
+  <text x="70" y="72" class="title">Evaluation calibration loop</text>
+  <text x="70" y="108" class="subtitle">Start simple, learn from repeated evidence, then apply one consistent profile.</text>
+
+  <text x="70" y="158" class="eyebrow">FIRST PASS</text>
+  <path d="M 70 168 L 610 168" stroke="#d5a34e" stroke-width="3"/>
+  <text x="670" y="158" class="eyebrow">AS EVIDENCE ACCUMULATES</text>
+  <path d="M 670 168 L 1530 168" stroke="#0b8d82" stroke-width="3"/>
+
+  <!-- Step 1 -->
+  <g filter="url(#shadow)">
+    <rect x="70" y="205" width="250" height="180" rx="22" fill="#fffdf7" stroke="#d7d2c7" stroke-width="2"/>
+  </g>
+  <circle cx="105" cy="240" r="20" fill="#d8872e"/>
+  <text x="99" y="247" class="number">1</text>
+  <text x="105" y="298" class="card-title">Run evaluation</text>
+  <text x="105" y="334" class="card-text">Collect evaluator scores.</text>
+
+  <path d="M 320 295 L 365 295" class="arrow"/>
+
+  <!-- Step 2 -->
+  <g filter="url(#shadow)">
+    <rect x="375" y="205" width="250" height="180" rx="22" fill="#173f4b"/>
+  </g>
+  <circle cx="410" cy="240" r="20" fill="#e4a853"/>
+  <text x="404" y="247" class="number">2</text>
+  <text x="410" y="292" class="dark-title">Equal-weight</text>
+  <text x="410" y="324" class="dark-title">score</text>
+  <text x="410" y="358" class="dark-text">Uncalibrated baseline</text>
+
+  <path d="M 625 295 L 670 295" class="arrow"/>
+
+  <!-- Step 3 -->
+  <g filter="url(#shadow)">
+    <rect x="680" y="205" width="250" height="180" rx="22" fill="#fffdf7" stroke="#c5d3ce" stroke-width="2"/>
+  </g>
+  <circle cx="715" cy="240" r="20" fill="#0d9488"/>
+  <text x="709" y="247" class="number">3</text>
+  <text x="715" y="298" class="card-title">Repeat and</text>
+  <text x="715" y="330" class="card-title">rescore</text>
+  <text x="715" y="362" class="card-text">Gather calibration data</text>
+
+  <path d="M 930 295 L 975 295" class="arrow"/>
+
+  <!-- Step 4 -->
+  <g filter="url(#shadow)">
+    <rect x="985" y="205" width="250" height="180" rx="22" fill="#fffdf7" stroke="#c5d3ce" stroke-width="2"/>
+  </g>
+  <circle cx="1020" cy="240" r="20" fill="#0d9488"/>
+  <text x="1014" y="247" class="number">4</text>
+  <text x="1020" y="298" class="card-title">Learn weights</text>
+  <text x="1020" y="330" class="card-title">+ uncertainty</text>
+  <text x="1020" y="362" class="card-text">Generate the profile</text>
+
+  <path d="M 1235 295 L 1280 295" class="arrow"/>
+
+  <!-- Step 5 -->
+  <g filter="url(#shadow)">
+    <rect x="1290" y="205" width="240" height="180" rx="22" fill="#173f4b"/>
+  </g>
+  <circle cx="1325" cy="240" r="20" fill="#e4a853"/>
+  <text x="1319" y="247" class="number">5</text>
+  <text x="1325" y="298" class="dark-title">Apply profile</text>
+  <text x="1325" y="334" class="dark-text">Current + past reports</text>
+
+  <!-- Recalibration loop -->
+  <path d="M 1410 385 L 1410 490 L 805 490 L 805 398" class="loop"/>
+  <rect x="1000" y="467" width="300" height="44" rx="22" fill="#dff2ef" stroke="#9dcec8"/>
+  <text x="1037" y="495" class="loop-label">MORE DATA  ->  RECALIBRATE</text>
+
+  <text x="70" y="585" class="subtitle">Ship the calibration process, not one universal weight vector.</text>
+</svg>

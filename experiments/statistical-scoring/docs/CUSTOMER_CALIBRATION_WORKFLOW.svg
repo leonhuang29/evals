@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1140" viewBox="0 0 1600 1140" role="img" aria-labelledby="title description">
+  <title id="title">Customer calibration workflow</title>
+  <desc id="description">A flowchart showing an equal-weight first report, calibration observations, a statistical calibration engine, a versioned profile, and ongoing recalibration.</desc>
+  <defs>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#d8ddd7" stroke-width="1" opacity="0.45"/>
+    </pattern>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#173042" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#36515d"/>
+    </marker>
+    <marker id="arrow-teal" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#087f75"/>
+    </marker>
+    <style>
+      .title { font: 700 42px "Avenir Next", "Helvetica Neue", sans-serif; fill: #173042; }
+      .subtitle { font: 400 20px "Avenir Next", "Helvetica Neue", sans-serif; fill: #52666d; }
+      .stage { font: 700 16px "Avenir Next", "Helvetica Neue", sans-serif; letter-spacing: 1.8px; fill: #087f75; }
+      .stage-light { font: 700 16px "Avenir Next", "Helvetica Neue", sans-serif; letter-spacing: 1.8px; fill: #8de0d7; }
+      .card-title { font: 700 24px "Avenir Next", "Helvetica Neue", sans-serif; fill: #173042; }
+      .card-text { font: 400 17px "Avenir Next", "Helvetica Neue", sans-serif; fill: #455b63; }
+      .small-title { font: 700 20px "Avenir Next", "Helvetica Neue", sans-serif; fill: #173042; }
+      .small-text { font: 400 16px "Avenir Next", "Helvetica Neue", sans-serif; fill: #455b63; }
+      .output-title { font: 700 24px "Avenir Next", "Helvetica Neue", sans-serif; fill: #fffdf7; }
+      .output-text { font: 400 17px "Avenir Next", "Helvetica Neue", sans-serif; fill: #dff2ef; }
+      .arrow { fill: none; stroke: #36515d; stroke-width: 4; marker-end: url(#arrow); }
+      .arrow-teal { fill: none; stroke: #087f75; stroke-width: 4; marker-end: url(#arrow-teal); }
+      .connector { fill: none; stroke: #7e9196; stroke-width: 3; }
+      .loop-label { font: 600 15px "Avenir Next", "Helvetica Neue", sans-serif; fill: #087f75; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1140" fill="#f6f3ea"/>
+  <rect width="1600" height="1140" fill="url(#grid)"/>
+  <circle cx="1510" cy="80" r="170" fill="#e4a853" opacity="0.13"/>
+  <circle cx="55" cy="1090" r="210" fill="#0d9488" opacity="0.10"/>
+
+  <text x="80" y="70" class="title">From first score to calibrated evaluation</text>
+  <text x="80" y="108" class="subtitle">The system starts with an honest fallback, learns from repeated evidence, and applies one versioned profile consistently.</text>
+
+  <!-- Stage 1 -->
+  <g filter="url(#shadow)">
+    <rect x="80" y="155" width="420" height="250" rx="22" fill="#fffdf7" stroke="#d6d2c7" stroke-width="2"/>
+    <rect x="80" y="155" width="10" height="250" rx="5" fill="#e4a853"/>
+  </g>
+  <text x="120" y="198" class="stage">01  FIRST EXECUTION</text>
+  <text x="120" y="240" class="card-title">Run the experiment</text>
+  <text x="120" y="278" class="card-text">
+    <tspan x="120" dy="0">Run the selected cases with the</tspan>
+    <tspan x="120" dy="27">customer's evaluator set.</tspan>
+    <tspan x="120" dy="38">No reliability estimate exists yet.</tspan>
+  </text>
+  <rect x="120" y="355" width="246" height="28" rx="14" fill="#f7ead3"/>
+  <text x="138" y="375" class="small-text">Cold start: no calibration data</text>
+
+  <path d="M 500 280 L 575 280" class="arrow"/>
+
+  <g filter="url(#shadow)">
+    <rect x="585" y="155" width="420" height="250" rx="22" fill="#fffdf7" stroke="#d6d2c7" stroke-width="2"/>
+    <rect x="585" y="155" width="10" height="250" rx="5" fill="#0d9488"/>
+  </g>
+  <text x="625" y="198" class="stage">RAW EVIDENCE</text>
+  <text x="625" y="240" class="card-title">Store every score</text>
+  <text x="625" y="278" class="card-text">
+    <tspan x="625" dy="0">Preserve raw evaluator outputs and</tspan>
+    <tspan x="625" dy="27">the configuration that produced them:</tspan>
+    <tspan x="625" dy="34">evaluator, rubric, judge, dataset, run.</tspan>
+  </text>
+  <rect x="625" y="355" width="250" height="28" rx="14" fill="#dff2ef"/>
+  <text x="643" y="375" class="small-text">Raw scores remain recomputable</text>
+
+  <path d="M 1005 280 L 1080 280" class="arrow"/>
+
+  <g filter="url(#shadow)">
+    <rect x="1090" y="155" width="430" height="250" rx="22" fill="#173f4b"/>
+    <rect x="1090" y="155" width="10" height="250" rx="5" fill="#e4a853"/>
+  </g>
+  <text x="1130" y="198" class="stage-light">FIRST REPORT</text>
+  <text x="1130" y="240" class="output-title">Equal-weight composite</text>
+  <text x="1130" y="278" class="output-text">
+    <tspan x="1130" dy="0">Provide an understandable baseline,</tspan>
+    <tspan x="1130" dy="27">clearly labeled as uncalibrated.</tspan>
+  </text>
+  <rect x="1130" y="335" width="252" height="42" rx="21" fill="#e4a853"/>
+  <text x="1153" y="363" class="small-title">status: uncalibrated</text>
+
+  <!-- Stage 2 -->
+  <rect x="80" y="475" width="1440" height="280" rx="28" fill="#eef3ef" stroke="#c8d3ce" stroke-width="2"/>
+  <text x="120" y="516" class="stage">02  COLLECT CALIBRATION OBSERVATIONS</text>
+  <text x="120" y="548" class="subtitle">Keep the sources of variation distinct so the algorithm can learn what is signal and what is noise.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="120" y="585" width="400" height="130" rx="18" fill="#fffdf7"/>
+  </g>
+  <circle cx="160" cy="620" r="18" fill="#0d9488"/>
+  <text x="154" y="627" font-family="Avenir Next, Helvetica Neue, sans-serif" font-size="18" font-weight="700" fill="#fff">J</text>
+  <text x="195" y="622" class="small-title">Replay fixed outputs</text>
+  <text x="195" y="652" class="small-text">
+    <tspan x="195" dy="0">Same agent output, repeated judge calls</tspan>
+    <tspan x="195" dy="25" font-weight="700">Estimates judge variation</tspan>
+  </text>
+
+  <g filter="url(#shadow)">
+    <rect x="600" y="585" width="400" height="130" rx="18" fill="#fffdf7"/>
+  </g>
+  <circle cx="640" cy="620" r="18" fill="#d0812c"/>
+  <text x="633" y="627" font-family="Avenir Next, Helvetica Neue, sans-serif" font-size="18" font-weight="700" fill="#fff">A</text>
+  <text x="675" y="622" class="small-title">Repeat agent runs</text>
+  <text x="675" y="652" class="small-text">
+    <tspan x="675" dy="0">New attempts on the same case</tspan>
+    <tspan x="675" dy="25" font-weight="700">Estimates agent-run variation</tspan>
+  </text>
+
+  <g filter="url(#shadow)">
+    <rect x="1080" y="585" width="400" height="130" rx="18" fill="#fffdf7"/>
+  </g>
+  <circle cx="1120" cy="620" r="18" fill="#47778b"/>
+  <text x="1114" y="627" font-family="Avenir Next, Helvetica Neue, sans-serif" font-size="18" font-weight="700" fill="#fff">C</text>
+  <text x="1155" y="622" class="small-title">Evaluate many cases</text>
+  <text x="1155" y="652" class="small-text">
+    <tspan x="1155" dy="0">Different tasks in the same experiment</tspan>
+    <tspan x="1155" dy="25" font-weight="700">Estimates case variation</tspan>
+  </text>
+
+  <!-- Raw score split -->
+  <path d="M 795 405 L 795 445 L 320 445 L 320 575" class="connector"/>
+  <path d="M 795 445 L 800 445 L 800 575" class="connector"/>
+  <path d="M 800 445 L 1280 445 L 1280 575" class="connector"/>
+  <circle cx="795" cy="445" r="7" fill="#7e9196"/>
+
+  <!-- Converge to engine -->
+  <path d="M 320 715 L 320 780 L 520 780 L 520 805" class="connector"/>
+  <path d="M 800 715 L 800 780 L 520 780" class="connector"/>
+  <path d="M 1280 715 L 1280 780 L 520 780" class="connector"/>
+  <circle cx="520" cy="780" r="7" fill="#7e9196"/>
+
+  <!-- Stage 3 -->
+  <g filter="url(#shadow)">
+    <rect x="180" y="815" width="570" height="245" rx="24" fill="#fffdf7" stroke="#bfcac5" stroke-width="2"/>
+    <rect x="180" y="815" width="570" height="12" rx="6" fill="#0d9488"/>
+  </g>
+  <text x="220" y="866" class="stage">03  CALIBRATION ENGINE</text>
+  <text x="220" y="906" class="card-title">Turn observations into a profile</text>
+  <text x="220" y="943" class="card-text">
+    <tspan x="220" dy="0">Tidy table  ->  variance components  ->  reliability</tspan>
+    <tspan x="220" dy="29">Candidate weighting rules  ->  bootstrap uncertainty</tspan>
+    <tspan x="220" dy="38">Optional: blend equal and learned weights while</tspan>
+    <tspan x="220" dy="27">confidence is still low.</tspan>
+  </text>
+
+  <path d="M 750 938 L 845 938" class="arrow-teal"/>
+
+  <!-- Stages 4 and 5 -->
+  <g filter="url(#shadow)">
+    <rect x="855" y="815" width="565" height="245" rx="24" fill="#173f4b"/>
+    <rect x="855" y="815" width="565" height="12" rx="6" fill="#e4a853"/>
+  </g>
+  <text x="895" y="866" class="stage-light">04  VERSION AND APPLY</text>
+  <text x="895" y="906" class="output-title">Calibration profile</text>
+  <text x="895" y="943" class="output-text">
+    <tspan x="895" dy="0">Store learned weights, uncertainty, diagnostics,</tspan>
+    <tspan x="895" dy="27">configuration, and profile version.</tspan>
+    <tspan x="895" dy="39">Apply the same profile to current and historical</tspan>
+    <tspan x="895" dy="27">raw scores so reports remain comparable.</tspan>
+  </text>
+
+  <!-- Feedback loop -->
+  <path d="M 1420 938 L 1515 938 L 1515 535 L 1485 535" class="arrow-teal"/>
+  <rect x="1125" y="766" width="395" height="38" rx="19" fill="#dff2ef" stroke="#97cfc8"/>
+  <text x="1148" y="791" class="loop-label">05  NEW EVIDENCE: RECALIBRATE WITH ALL DATA</text>
+
+  <text x="80" y="1110" class="subtitle">Key principle: ship the apparatus that learns weights for the customer's experiment, not one universal weight vector.</text>
+</svg>
