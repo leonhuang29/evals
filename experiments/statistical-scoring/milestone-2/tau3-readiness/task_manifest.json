@@ -1,0 +1,748 @@
+{
+  "schema_version": 1,
+  "experiment_id": "tau3-calibration-readiness-v1",
+  "sources": {
+    "harbor_commit": "e2aafe266e269abb4feee9a80e02f31bfb96044e",
+    "tau2_bench_commit": "96a3ef92329baf908ffe9dfe188cea34e8701d2a"
+  },
+  "selection": {
+    "method": "sha256_rank_within_domain",
+    "seed": 20261019,
+    "smoke_cases_per_domain": 3,
+    "main_cases_per_domain": 20
+  },
+  "tasks": [
+    {
+      "domain": "airline",
+      "source_task_id": "27",
+      "harbor_task_id": "tau3-airline-27",
+      "source_sha256": "bf11488978405af45bbb8fdbdc8d54480d440785b5740b8d75f77e8b4f76269f",
+      "stages": [
+        "smoke",
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "2",
+      "harbor_task_id": "tau3-airline-2",
+      "source_sha256": "b4762468fc661eef09a8b26056d556de5531437c6e2d1c953688390b759e1391",
+      "stages": [
+        "smoke",
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "23",
+      "harbor_task_id": "tau3-airline-23",
+      "source_sha256": "aef15892125b9d26bffc6d65e1d5baf42d8b6a941a9fd0492346582317605f37",
+      "stages": [
+        "smoke",
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "36",
+      "harbor_task_id": "tau3-airline-36",
+      "source_sha256": "c8ae07cf8b0bafae2b4e3100b4492ed4d6b290e1d02488e8277371fe156e5b92",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "13",
+      "harbor_task_id": "tau3-airline-13",
+      "source_sha256": "f85fc55a63a7628f6b88a2d21598a3d71d5f09bd88a142f534231dc2587476de",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "29",
+      "harbor_task_id": "tau3-airline-29",
+      "source_sha256": "3bd8a653a5e707509efc50fce25d638df527fa9debdce81660d28ee3214c79cf",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "11",
+      "harbor_task_id": "tau3-airline-11",
+      "source_sha256": "c76cd2fd76c9328c2bbfe5a59705707ba14a53da31fd8a451a3c4ad8ef443224",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "6",
+      "harbor_task_id": "tau3-airline-6",
+      "source_sha256": "c32fc91e6323c406869a2a177f2c7754507ea945fe9d7e5911e5657a2b2cb431",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "19",
+      "harbor_task_id": "tau3-airline-19",
+      "source_sha256": "afaa2ddfaaec6a2aae9d1dbb4b964fa44ca2f4b428b87e805850ca504142328a",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "3",
+      "harbor_task_id": "tau3-airline-3",
+      "source_sha256": "21a59df1ca56b5332070868e6d1c696191623485b909385f4229759f4fc566ff",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "40",
+      "harbor_task_id": "tau3-airline-40",
+      "source_sha256": "4928c624f06a934ce5dd8d0bdc1394082384cc2d358f7fed065dbd4753d27920",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "32",
+      "harbor_task_id": "tau3-airline-32",
+      "source_sha256": "db442df041dcc0fd7f127681391345890562db1322fcd5b2199d4dfb831eb9e0",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "22",
+      "harbor_task_id": "tau3-airline-22",
+      "source_sha256": "50c51521fa62fc35e288ce323b6ae62b40ca082344bbe59b1dc280c86f39f76c",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "41",
+      "harbor_task_id": "tau3-airline-41",
+      "source_sha256": "68046a6339af2a905b2e85b11ee323ca1f03139cf058ac27322932a6d281d2bb",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "48",
+      "harbor_task_id": "tau3-airline-48",
+      "source_sha256": "21994153fb911fcf7e371c4c9cddb1cdde173c3e6aa6f15b9c7c971c500311da",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "45",
+      "harbor_task_id": "tau3-airline-45",
+      "source_sha256": "152dddb751923ca4204fe163f67dfb013137f5602ceb09a6bad10d9fd6f66955",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "31",
+      "harbor_task_id": "tau3-airline-31",
+      "source_sha256": "c007546167d4708bd25de189a7dbcab6a2c51254aa2fe9120d1070c646036f6b",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "39",
+      "harbor_task_id": "tau3-airline-39",
+      "source_sha256": "a455a77004ea68543172d7c7fdacae21cb36a2a53aabc93fdc5d3dd084c64e7e",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "47",
+      "harbor_task_id": "tau3-airline-47",
+      "source_sha256": "fbb24be9f82b9e63dd7809f79649071678c30a32cd0a4b8bc62d3a5c275228ee",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "airline",
+      "source_task_id": "18",
+      "harbor_task_id": "tau3-airline-18",
+      "source_sha256": "fbf527e0d109407f24368b7dbc188e3853d2096cb668b5254b7c27a39cf3a96b",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "81",
+      "harbor_task_id": "tau3-retail-81",
+      "source_sha256": "1fa3c506c90d2350403d1b586ede8aec484c049e4f8bcb561e15ea174c1f6a76",
+      "stages": [
+        "smoke",
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "49",
+      "harbor_task_id": "tau3-retail-49",
+      "source_sha256": "f8459fc6932aab6b8eaa3e22cd26337e99a8f167a572058315ba5feeffa0206d",
+      "stages": [
+        "smoke",
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "7",
+      "harbor_task_id": "tau3-retail-7",
+      "source_sha256": "16212f22056312671fe6a867bb41008f5c676bd9f08f58994d870f327966312a",
+      "stages": [
+        "smoke",
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "29",
+      "harbor_task_id": "tau3-retail-29",
+      "source_sha256": "c12c34a735c9ac2d54991ef3c0f90e85c301a16e4731511266712ccd88d9125d",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "38",
+      "harbor_task_id": "tau3-retail-38",
+      "source_sha256": "63cc3149c03c02286d8fd126fd9a85f6f331858cafd0518c636e9e3399d4289f",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "63",
+      "harbor_task_id": "tau3-retail-63",
+      "source_sha256": "c3a9776570a1708599bd5132509f2cc27ac9cc791eec6d864a18885cf0668623",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "73",
+      "harbor_task_id": "tau3-retail-73",
+      "source_sha256": "4e0ddaf28df78e409757e29bb645f64565c9f31ac21c6058dd3b7d7b99b4c555",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "17",
+      "harbor_task_id": "tau3-retail-17",
+      "source_sha256": "7731d3115c1e22423b1a2e15ae7734371a2e4e317b6b10b73da97b08a1c76b2d",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "11",
+      "harbor_task_id": "tau3-retail-11",
+      "source_sha256": "0f798ae5c20218638f2aa28597ffab94dc2143a8e97459e973aaa9ad5e5be5b5",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "8",
+      "harbor_task_id": "tau3-retail-8",
+      "source_sha256": "4ab4db4a47a8aed7aa5798ea22a34f7e1ad2d091f6eca33db62ac467c1675c7a",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "111",
+      "harbor_task_id": "tau3-retail-111",
+      "source_sha256": "d4d30dc78732f5210b260aeb194367423a7137002f0bb11cd25a7de96c84b5c2",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "50",
+      "harbor_task_id": "tau3-retail-50",
+      "source_sha256": "8436b10ee49285e7dca84a6b4930180698722884133ef04f0b7af22b3ed41da5",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "87",
+      "harbor_task_id": "tau3-retail-87",
+      "source_sha256": "6c4dde45624a0efd40d93d2ce986a24380e640f4c09ee281fcbf0d275c270b62",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "70",
+      "harbor_task_id": "tau3-retail-70",
+      "source_sha256": "49f28dca85e76920bcf6073a69f8c73ef4382d012d5bc67f078c2e6b2464b32b",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "100",
+      "harbor_task_id": "tau3-retail-100",
+      "source_sha256": "5f18c87906aeaf359d219edace146a15c7d530b975f55fe1025515511d30db1f",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "97",
+      "harbor_task_id": "tau3-retail-97",
+      "source_sha256": "3110613b9538d5398b04f585d6c0792c5e8d9f43b0e2a94bafd7c66eefe89977",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "72",
+      "harbor_task_id": "tau3-retail-72",
+      "source_sha256": "99e4758d08f8bdcf019a9b52fa0badd218e632181c78d7aa953994f8b001f554",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "43",
+      "harbor_task_id": "tau3-retail-43",
+      "source_sha256": "d1f86f24327565fdc0056396430fdb7c02491214485e3ad3fb9d7db03c0faec7",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "46",
+      "harbor_task_id": "tau3-retail-46",
+      "source_sha256": "a6a53c94172d850ecd429b5b10865b980d6263d17fcd38ce9816c11352aaa736",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "retail",
+      "source_task_id": "75",
+      "harbor_task_id": "tau3-retail-75",
+      "source_sha256": "fec0bb8709edc1b786ec58d1d84a4818c399302dfbf9965157826167d4647a0d",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[service_issue]airplane_mode_on|break_apn_settings|overdue_bill_suspension[PERSONA:None]",
+      "harbor_task_id": "tau3-telecom-service-issue-airplane-mode-on-break-apn-settings-overdue-bill-suspension-persona-none",
+      "source_sha256": "5dbf5bff7677b9e7cec62256953b1d3ac953a3fa43c5e3e078e427c03cb9526f",
+      "stages": [
+        "smoke",
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|unseat_sim_card|user_abroad_roaming_enabled_off[PERSONA:Hard]",
+      "harbor_task_id": "tau3-telecom-mms-issue-airplane-mode-on-bad-network-preference-bad-wifi-calling-break-apn-mms-setting-break-app-both-permissions-unseat-sim-card-user-abroad-roaming-enabled-off-persona-hard",
+      "source_sha256": "e294a1e9d74f14e2b8af5642177bbd92562ba1d5fb1054138b2be7d7e7ad1a84",
+      "stages": [
+        "smoke",
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_storage_permission|data_mode_off|data_usage_exceeded|unseat_sim_card[PERSONA:Easy]",
+      "harbor_task_id": "tau3-telecom-mms-issue-airplane-mode-on-bad-network-preference-bad-wifi-calling-break-apn-mms-setting-break-app-storage-permission-data-mode-off-data-usage-exceeded-unseat-sim-card-persona-easy",
+      "source_sha256": "46aeb73f99f22e94e8c9f2e495d1a5d2b6d1598f01aedd60dd1a23309b59edbc",
+      "stages": [
+        "smoke",
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[service_issue]break_apn_settings|lock_sim_card_pin[PERSONA:None]",
+      "harbor_task_id": "tau3-telecom-service-issue-break-apn-settings-lock-sim-card-pin-persona-none",
+      "source_sha256": "e9d9ed8403fff82e87b6eb28ffa028b5ee0e3db5e8065e8b27f38c5afb00a43a",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mms_issue]airplane_mode_on|bad_network_preference|break_apn_mms_setting|data_mode_off|unseat_sim_card|user_abroad_roaming_disabled_off[PERSONA:Easy]",
+      "harbor_task_id": "tau3-telecom-mms-issue-airplane-mode-on-bad-network-preference-break-apn-mms-setting-data-mode-off-unseat-sim-card-user-abroad-roaming-disabled-off-persona-easy",
+      "source_sha256": "ce38ff9a73e1a94ac43c17f18ac0ced120bb113be49c7f09d05ade8c75776af6",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mobile_data_issue]bad_vpn|data_saver_mode_on|user_abroad_roaming_disabled_on[PERSONA:None]",
+      "harbor_task_id": "tau3-telecom-mobile-data-issue-bad-vpn-data-saver-mode-on-user-abroad-roaming-disabled-on-persona-none",
+      "source_sha256": "40bdfe6766901de423000c3522470209d5165d2b017cc413e5ee6313afde6b38",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mobile_data_issue]airplane_mode_on|bad_network_preference|data_mode_off|data_saver_mode_on|data_usage_exceeded|user_abroad_roaming_disabled_on[PERSONA:None]",
+      "harbor_task_id": "tau3-telecom-mobile-data-issue-airplane-mode-on-bad-network-preference-data-mode-off-data-saver-mode-on-data-usage-exceeded-user-abroad-roaming-disabled-on-persona-none",
+      "source_sha256": "d7b770e4c2961dae164efd6e966aa62b8d6aa736b1c00707ba444b230f86c33e",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[service_issue]airplane_mode_on|break_apn_settings|contract_end_suspension|lock_sim_card_pin|unseat_sim_card[PERSONA:Easy]",
+      "harbor_task_id": "tau3-telecom-service-issue-airplane-mode-on-break-apn-settings-contract-end-suspension-lock-sim-card-pin-unseat-sim-card-persona-easy",
+      "source_sha256": "2fe941ec55028aaf7dc838f540f31a093d1ca6089daf3c2e07780f9a1058311e",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mobile_data_issue]airplane_mode_on|bad_network_preference|data_usage_exceeded|user_abroad_roaming_disabled_off[PERSONA:Easy]",
+      "harbor_task_id": "tau3-telecom-mobile-data-issue-airplane-mode-on-bad-network-preference-data-usage-exceeded-user-abroad-roaming-disabled-off-persona-easy",
+      "source_sha256": "e210697441820ed7404e82b38c08ab210933515ef61e814e9fce61660cfaf45c",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[service_issue]break_apn_settings|lock_sim_card_pin|overdue_bill_suspension[PERSONA:Easy]",
+      "harbor_task_id": "tau3-telecom-service-issue-break-apn-settings-lock-sim-card-pin-overdue-bill-suspension-persona-easy",
+      "source_sha256": "d82584fbf38b003d7c1395eb386972cf3fe81f0cfe36868321c0bf80daaa48f6",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[service_issue]airplane_mode_on|overdue_bill_suspension[PERSONA:None]",
+      "harbor_task_id": "tau3-telecom-service-issue-airplane-mode-on-overdue-bill-suspension-persona-none",
+      "source_sha256": "0ccdaab497f7d9450dec56cb3020bacf09eac9c7f589058dda199a69ecf5aca9",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mobile_data_issue]airplane_mode_on|bad_network_preference|data_saver_mode_on|data_usage_exceeded|user_abroad_roaming_disabled_off[PERSONA:None]",
+      "harbor_task_id": "tau3-telecom-mobile-data-issue-airplane-mode-on-bad-network-preference-data-saver-mode-on-data-usage-exceeded-user-abroad-roaming-disabled-off-persona-none",
+      "source_sha256": "8ac43d7deec846be1e95965ce0d60104ee7e27555f7ff8fbef7268a7d2c6a373",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[service_issue]contract_end_suspension|unseat_sim_card[PERSONA:Hard]",
+      "harbor_task_id": "tau3-telecom-service-issue-contract-end-suspension-unseat-sim-card-persona-hard",
+      "source_sha256": "05dd9bf7cf7ca614734a86e0d8d7a0f86d8bd4b8a5583b460ab4bdc17c575888",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_storage_permission|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_on[PERSONA:Easy]",
+      "harbor_task_id": "tau3-telecom-mms-issue-airplane-mode-on-bad-network-preference-bad-wifi-calling-break-apn-mms-setting-break-app-storage-permission-data-mode-off-data-usage-exceeded-unseat-sim-card-user-abroad-roaming-disabled-on-persona-easy",
+      "source_sha256": "7eb3a285e57a64a9cfbf96d926229777b04b7b3f68e62264ea5157262ffb9c67",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mobile_data_issue]airplane_mode_on|bad_network_preference|bad_vpn|data_mode_off|data_saver_mode_on|data_usage_exceeded|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "harbor_task_id": "tau3-telecom-mobile-data-issue-airplane-mode-on-bad-network-preference-bad-vpn-data-mode-off-data-saver-mode-on-data-usage-exceeded-user-abroad-roaming-enabled-off-persona-easy",
+      "source_sha256": "6d24eea940450b3e18d4d70abb9a489219d395b70ce12469367bb5c4b55db770",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mms_issue]bad_network_preference|break_app_both_permissions[PERSONA:Easy]",
+      "harbor_task_id": "tau3-telecom-mms-issue-bad-network-preference-break-app-both-permissions-persona-easy",
+      "source_sha256": "a55a3e24819a0e6928a16aa56d642637bb207443315785252da2e5bcb830f9d4",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mobile_data_issue]airplane_mode_on|data_mode_off[PERSONA:None]",
+      "harbor_task_id": "tau3-telecom-mobile-data-issue-airplane-mode-on-data-mode-off-persona-none",
+      "source_sha256": "1684f44366c23e2dd6ca8588614be2430c890aca0631dfc62bcfa05794252cef",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[service_issue]break_apn_settings|contract_end_suspension|lock_sim_card_pin|unseat_sim_card[PERSONA:Hard]",
+      "harbor_task_id": "tau3-telecom-service-issue-break-apn-settings-contract-end-suspension-lock-sim-card-pin-unseat-sim-card-persona-hard",
+      "source_sha256": "7153b8d34839c69894dfe85b70e6ba907e32ef64ef183039379ba1590b0db861",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mobile_data_issue]bad_network_preference|bad_vpn|data_mode_off|data_saver_mode_on[PERSONA:None]",
+      "harbor_task_id": "tau3-telecom-mobile-data-issue-bad-network-preference-bad-vpn-data-mode-off-data-saver-mode-on-persona-none",
+      "source_sha256": "a0c8b5e622cc7cbf2efc919f0a54315617d077327f705d81987a89628cd84df3",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "telecom",
+      "source_task_id": "[mms_issue]break_app_both_permissions|data_usage_exceeded[PERSONA:Hard]",
+      "harbor_task_id": "tau3-telecom-mms-issue-break-app-both-permissions-data-usage-exceeded-persona-hard",
+      "source_sha256": "853f6f8e13a5e6c081cbc1b37fdac41a5ab5171c741c6573f43efdee1d3051a6",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_045",
+      "harbor_task_id": "tau3-banking_knowledge-task-045",
+      "source_sha256": "3f1f004d55123f5cafd957ba6f89284606546c94205a28e2db5a044e47c80723",
+      "stages": [
+        "smoke",
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_076",
+      "harbor_task_id": "tau3-banking_knowledge-task-076",
+      "source_sha256": "539ba9609bd1c3ae1f7b2f58f043137faa8cffccf2592e762cf51e4f0ace8827",
+      "stages": [
+        "smoke",
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_083",
+      "harbor_task_id": "tau3-banking_knowledge-task-083",
+      "source_sha256": "dd37975734624d67f81e8cb77bc9858791057b95db5578eb88abc5ea3f273c46",
+      "stages": [
+        "smoke",
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_096",
+      "harbor_task_id": "tau3-banking_knowledge-task-096",
+      "source_sha256": "85fba2cb0ffcd2ee0740f4b3f6fcc269ab567b94d0ca5bbece737560ee7cb68e",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_007",
+      "harbor_task_id": "tau3-banking_knowledge-task-007",
+      "source_sha256": "ffd84e31b9c68d5f132357724c813c415f74865fd357320e85500c0bb426dace",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_081",
+      "harbor_task_id": "tau3-banking_knowledge-task-081",
+      "source_sha256": "e9b0b7a3c16afad63ae48d629fa459043fb9c7b83de8317db6d5fee4a5261b44",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_058",
+      "harbor_task_id": "tau3-banking_knowledge-task-058",
+      "source_sha256": "407a89cfa67ba7bd1aa64e6df7ee1c1bfa7170538f1b67ef0c0ba705c62fc4f3",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_066",
+      "harbor_task_id": "tau3-banking_knowledge-task-066",
+      "source_sha256": "f46efa7f4d8d51f9119029255a2e701c68ec1e1405159a148020bfd66e58bca8",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_039",
+      "harbor_task_id": "tau3-banking_knowledge-task-039",
+      "source_sha256": "49f6306f9f598fb738a18a1ae96c0d1818ce713825df4dbb37843c89a8bb3578",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_018",
+      "harbor_task_id": "tau3-banking_knowledge-task-018",
+      "source_sha256": "53fb2467d310f57073afa8c15669efe46949029ae02f467236da1b0ff5161d35",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_047",
+      "harbor_task_id": "tau3-banking_knowledge-task-047",
+      "source_sha256": "c1737e9bf7483bd5a0c0bc7234631ea9223f7c19b70b65299ae917f40247486e",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_071",
+      "harbor_task_id": "tau3-banking_knowledge-task-071",
+      "source_sha256": "4225a07eb17ed1e40d1279c679ea83969e51628006ea00e503d4a081ac86cf67",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_006",
+      "harbor_task_id": "tau3-banking_knowledge-task-006",
+      "source_sha256": "1237a51c13f478e963c4e5eb705fe6c112aa1d3cf202157a4387dd17f019f6c8",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_033",
+      "harbor_task_id": "tau3-banking_knowledge-task-033",
+      "source_sha256": "570361e6318a2c12e908428b1aa547cbcc580af6617991f762c56eca9d563150",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_097",
+      "harbor_task_id": "tau3-banking_knowledge-task-097",
+      "source_sha256": "faa96241d8c5e9d194e8eee9762582f8ba9af0441128d91d6a988f930d8152a0",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_064",
+      "harbor_task_id": "tau3-banking_knowledge-task-064",
+      "source_sha256": "1151850a1b83396a76e6799f76840d42e811a3a559da60ef8896ab8af48e94ac",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_060",
+      "harbor_task_id": "tau3-banking_knowledge-task-060",
+      "source_sha256": "8f55bfe391cdaaa02c11c269509f388e21e77a08e3b026cde8f8b28a2f992e3c",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_050",
+      "harbor_task_id": "tau3-banking_knowledge-task-050",
+      "source_sha256": "26348a32751bee9d4478b6838ce2e316e1879705f1af2cd8954da599cc616f1d",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_034",
+      "harbor_task_id": "tau3-banking_knowledge-task-034",
+      "source_sha256": "da18e17251744cfdd5f81c7906ef027caf331378c7db4787afbddd7f96f36d9d",
+      "stages": [
+        "main"
+      ]
+    },
+    {
+      "domain": "banking_knowledge",
+      "source_task_id": "task_022",
+      "harbor_task_id": "tau3-banking_knowledge-task-022",
+      "source_sha256": "190f507fb1f92e1af98b763ded457f0910075948efd97d80ee9825fea56c62b2",
+      "stages": [
+        "main"
+      ]
+    }
+  ]
+}
