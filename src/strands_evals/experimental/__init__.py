@@ -1,4 +1,5 @@
 from .calibrator import (
+    CalibrationAlgorithm,
     CalibrationProfile,
     CalibrationResult,
     CalibrationStatus,
@@ -8,6 +9,7 @@ from .calibrator import (
 )
 
 __all__ = [
+    "CalibrationAlgorithm",
     "CalibrationProfile",
     "CalibrationResult",
     "CalibrationStatus",

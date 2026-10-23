@@ -9,25 +9,20 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Any, Literal, Self, TypeGuard
 
+from .algorithm import WeightingAlgorithm, WeightingMethod
+
 PROFILE_SCHEMA_VERSION = 1
-CALIBRATION_ALGORITHM_VERSION = 1
 _CALIBRATION_CONTEXT_VERSION = "1"
-_COMPATIBILITY_COMPONENTS = ("version", "dataset", "evaluators", "step_sizes")
+_SCORING_COMPATIBILITY_COMPONENTS = ("version", "evaluators", "step_sizes")
+_REFIT_COMPATIBILITY_COMPONENTS = ("version", "dataset", "evaluators", "step_sizes")
 _VARIANCE_COMPONENTS = {"agent", "case", "judge"}
 
-WeightingMethod = Literal["equal", "reliability", "inverse_step", "inverse_sqrt_step"]
-WEIGHTING_METHODS: tuple[WeightingMethod, ...] = (
-    "equal",
-    "reliability",
-    "inverse_step",
-    "inverse_sqrt_step",
-)
-
 BootstrapSummary = dict[str, float | int | None]
+CalibrationStatus = Literal["uncalibrated", "equal_weight_fallback", "calibrated"]
 
 
 class ProfileCompatibility(str, Enum):
-    """Compatibility between a profile and an evaluation configuration."""
+    """Compatibility between a profile and a runtime configuration."""
 
     COMPATIBLE = "compatible"
     STALE = "stale"
@@ -41,13 +36,13 @@ class BootstrapDiagnostics(BaseModel):
 
     replicates: int = Field(ge=2)
     seed: int
-    reliability_intervals: dict[str, BootstrapSummary]
+    repeatability_intervals: dict[str, BootstrapSummary]
     candidate_weight_intervals: dict[WeightingMethod, dict[str, BootstrapSummary]]
     composite_score_intervals: dict[WeightingMethod, BootstrapSummary]
 
 
 class CalibrationProfile(BaseModel):
-    """Durable record of one fitted evaluator calibration."""
+    """Durable record of one fitted calibration model and its diagnostics."""
 
     model_config = ConfigDict(
         allow_inf_nan=False,
@@ -56,18 +51,21 @@ class CalibrationProfile(BaseModel):
     )
 
     schema_version: int = PROFILE_SCHEMA_VERSION
-    algorithm_version: int = Field(default=CALIBRATION_ALGORITHM_VERSION, ge=0)
     profile_id: str
-    weighting_method: WeightingMethod
-    weights: dict[str, float]
+    algorithm_id: str = Field(min_length=1)
+    algorithm_version: int = Field(ge=1)
+    model_parameters: dict[str, Any]
+    weighting_method: WeightingMethod | None = None
+    weights: dict[str, float] | None = None
+    status: CalibrationStatus
     step_sizes: dict[str, float]
     variance_components: dict[str, dict[str, float]]
-    reliabilities: dict[str, float]
+    repeatabilities: dict[str, float]
     case_count: int = Field(ge=2)
     agent_runs: int = Field(ge=2)
     judge_replays: int = Field(ge=2)
-    calibration_context: dict[str, Any] | None
-    report_structure_fingerprint: str | None = Field(
+    calibration_context: dict[str, Any] | None = None
+    fit_structure_fingerprint: str | None = Field(
         default=None,
         pattern=r"^[0-9a-f]{64}$",
     )
@@ -86,19 +84,28 @@ class CalibrationProfile(BaseModel):
             raise ValueError("calibration profile must contain at least one evaluator")
         if any(not math.isfinite(value) or value <= 0.0 for value in self.step_sizes.values()):
             raise ValueError("profile step sizes must be finite and greater than zero")
-        if set(self.weights) != evaluator_names:
-            raise ValueError("weights evaluator names must match step_sizes")
         if set(self.variance_components) != evaluator_names:
             raise ValueError("variance_components evaluator names must match step_sizes")
-        if set(self.reliabilities) != evaluator_names:
-            raise ValueError("reliabilities evaluator names must match step_sizes")
+        if set(self.repeatabilities) != evaluator_names:
+            raise ValueError("repeatabilities evaluator names must match step_sizes")
 
-        if any(not math.isfinite(value) or value < 0.0 for value in self.weights.values()):
-            raise ValueError("profile weights must be finite and non-negative")
-        if not math.isclose(sum(self.weights.values()), 1.0, abs_tol=1e-12):
-            raise ValueError("profile weights must sum to 1")
-        if any(not math.isfinite(value) or not 0.0 <= value <= 1.0 for value in self.reliabilities.values()):
-            raise ValueError("profile reliabilities must be finite and between 0 and 1")
+        if self.weights is not None:
+            if set(self.weights) != evaluator_names:
+                raise ValueError("weights evaluator names must match step_sizes")
+            if any(not math.isfinite(value) or value < 0.0 for value in self.weights.values()):
+                raise ValueError("profile weights must be finite and non-negative")
+            if not math.isclose(sum(self.weights.values()), 1.0, abs_tol=1e-12):
+                raise ValueError("profile weights must sum to 1")
+
+        if self.weighting_method is not None:
+            expected_algorithm_id = f"{self.weighting_method}_weighting"
+            if self.algorithm_id != expected_algorithm_id:
+                raise ValueError("weighting_method does not match algorithm_id")
+            if self.weights is None:
+                raise ValueError("built-in weighting profiles must contain weights")
+
+        if any(not math.isfinite(value) or not 0.0 <= value <= 1.0 for value in self.repeatabilities.values()):
+            raise ValueError("profile repeatabilities must be finite and between 0 and 1")
         for evaluator_name, components in self.variance_components.items():
             if set(components) != _VARIANCE_COMPONENTS:
                 raise ValueError(
@@ -107,6 +114,19 @@ class CalibrationProfile(BaseModel):
                 )
             if any(not math.isfinite(value) or value < 0.0 for value in components.values()):
                 raise ValueError(f"profile variance components for {evaluator_name!r} must be finite and non-negative")
+
+        try:
+            _canonical_json(self.model_parameters)
+        except (TypeError, ValueError) as error:
+            raise ValueError("model_parameters must be deterministic and JSON-compatible") from error
+
+        if self.calibration_context is None:
+            if self.fit_structure_fingerprint is None:
+                raise ValueError("context-free profiles require a fit_structure_fingerprint")
+        elif not _has_compatibility_components(self.calibration_context):
+            raise ValueError("calibration_context is missing required compatibility components")
+        elif self.calibration_context["version"] != _CALIBRATION_CONTEXT_VERSION:
+            raise ValueError("calibration_context has an unsupported version")
 
         expected_id = self.calculate_profile_id(
             self.model_dump(mode="json", exclude={"profile_id"}),
@@ -135,49 +155,54 @@ class CalibrationProfile(BaseModel):
     @staticmethod
     def calculate_profile_id(payload: dict[str, Any]) -> str:
         """Calculate a deterministic SHA-256 identifier for profile contents."""
-        serialized = json.dumps(
-            payload,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-            allow_nan=False,
-        )
-        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+        return hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
+
+    def algorithm_compatibility(
+        self,
+        algorithm_id: str,
+        algorithm_version: int,
+    ) -> ProfileCompatibility:
+        """Classify this profile against one algorithm implementation."""
+        if algorithm_id != self.algorithm_id:
+            return ProfileCompatibility.INCOMPATIBLE
+        if self.algorithm_version < algorithm_version:
+            return ProfileCompatibility.STALE
+        if self.algorithm_version > algorithm_version:
+            return ProfileCompatibility.INCOMPATIBLE
+        return ProfileCompatibility.COMPATIBLE
 
     def compatibility_with(
         self,
         calibration_context: dict[str, Any] | None,
+        *,
+        for_refit: bool = False,
     ) -> ProfileCompatibility:
-        """Classify this profile against an evaluation configuration."""
+        """Classify this profile against a scoring or refitting configuration."""
         runtime_compatibility = self.runtime_compatibility
         if runtime_compatibility != ProfileCompatibility.COMPATIBLE:
             return runtime_compatibility
+        if self.calibration_context is None and calibration_context is None:
+            return ProfileCompatibility.COMPATIBLE
         if not _has_compatibility_components(self.calibration_context) or not _has_compatibility_components(
             calibration_context
         ):
             return ProfileCompatibility.INCOMPATIBLE
 
-        if any(
-            calibration_context[component] != self.calibration_context[component]
-            for component in _COMPATIBILITY_COMPONENTS
-        ):
+        components = _REFIT_COMPATIBILITY_COMPONENTS if for_refit else _SCORING_COMPATIBILITY_COMPONENTS
+        if any(calibration_context[component] != self.calibration_context[component] for component in components):
             return ProfileCompatibility.INCOMPATIBLE
         return ProfileCompatibility.COMPATIBLE
 
     @property
     def runtime_compatibility(self) -> ProfileCompatibility:
-        """Classify whether this runtime can safely restore the profile."""
-        has_calibration_context = _has_compatibility_components(self.calibration_context)
-        if not has_calibration_context and self.report_structure_fingerprint is None:
-            return ProfileCompatibility.INCOMPATIBLE
-        if has_calibration_context and self.calibration_context["version"] != _CALIBRATION_CONTEXT_VERSION:
-            return ProfileCompatibility.INCOMPATIBLE
-
-        if self.algorithm_version < CALIBRATION_ALGORITHM_VERSION:
-            return ProfileCompatibility.STALE
-        if self.algorithm_version > CALIBRATION_ALGORITHM_VERSION:
-            return ProfileCompatibility.INCOMPATIBLE
-        return ProfileCompatibility.COMPATIBLE
+        """Classify whether this runtime understands the profile schema."""
+        if self.weighting_method is None:
+            return ProfileCompatibility.COMPATIBLE
+        algorithm = WeightingAlgorithm(self.weighting_method)
+        return self.algorithm_compatibility(
+            algorithm.algorithm_id,
+            algorithm.algorithm_version,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-compatible profile dictionary."""
@@ -216,6 +241,17 @@ class CalibrationProfile(BaseModel):
         return cls.from_dict(data)
 
 
+def _canonical_json(value: Any) -> str:
+    """Serialize a profile payload deterministically."""
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+
+
 def _json_path(path: str, *, require_extension: bool) -> Path:
     """Normalize and validate a profile JSON path."""
     file_path = Path(path)
@@ -232,5 +268,5 @@ def _has_compatibility_components(
     """Return whether a context contains every required fingerprint."""
     return calibration_context is not None and all(
         isinstance(calibration_context.get(component), str) and bool(calibration_context[component])
-        for component in _COMPATIBILITY_COMPONENTS
+        for component in _REFIT_COMPATIBILITY_COMPONENTS
     )
