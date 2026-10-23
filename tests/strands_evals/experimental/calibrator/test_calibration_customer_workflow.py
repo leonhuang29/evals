@@ -1,5 +1,3 @@
-import sys
-
 import pytest
 
 from strands_evals import Case, Experiment
@@ -35,10 +33,6 @@ class _ReplayNoisyEvaluator(Evaluator[str, str]):
         self._calls_by_input[evaluation_case.input] = call + 1
         score = float(call % 2)
         return [EvaluationOutput(score=score, test_pass=score == 1.0)]
-
-
-def _format_number(value: float | int | None) -> str:
-    return "undefined" if value is None else f"{float(value):.3f}"
 
 
 def test_customer_can_run_and_inspect_calibration() -> None:
@@ -111,7 +105,7 @@ def test_customer_can_run_and_inspect_calibration() -> None:
         "stable-quality": 0.5,
         "replay-noisy": 0.5,
     }
-    assert calibrator.reliabilities == pytest.approx(
+    assert calibrator.repeatabilities == pytest.approx(
         {
             "stable-quality": 1.0,
             "replay-noisy": 0.0,
@@ -129,56 +123,5 @@ def test_customer_can_run_and_inspect_calibration() -> None:
     assert isinstance(stable_weight_interval["lower_2_5"], float)
     assert stable_weight_interval["lower_2_5"] > 0.5
     assert stable_weight_interval["upper_97_5"] == pytest.approx(1.0)
+    assert noisy_weight_interval["defined_replicates"] == 100
     assert score_interval["defined_replicates"] == 100
-    sys.stdout.write(
-        "\n".join(
-            [
-                "",
-                "CUSTOMER CALIBRATION WORKFLOW: PASS",
-                "===================================",
-                "Experiment design",
-                f"  cases:                        {len(cases):2}",
-                "  evaluators:                    2",
-                "  agent runs per case:           2",
-                "  judge replays per fixed run:   3",
-                "  bootstrap replicates:        100",
-                "",
-                "Collected observations",
-                f"  agent task executions:        {task_calls:2} (expected {len(cases)} cases x 2 runs)",
-                f"  stable evaluator calls:       {stable_evaluator.calls:2} (expected {len(cases)} x 2 x 3)",
-                f"  noisy evaluator calls:        {noisy_evaluator.calls:2} (expected {len(cases)} x 2 x 3)",
-                "",
-                "Cold-start weights",
-                "  stable-quality:                0.500",
-                "  replay-noisy:                  0.500",
-                "",
-                f"Measurement fit ({calibrator.algorithm_id})",
-                f"  stable judge variance:        {calibrator.variance_components['stable-quality']['judge']:.3f}",
-                f"  noisy judge variance:         {calibrator.variance_components['replay-noisy']['judge']:.3f}",
-                f"  stable reliability:           {calibrator.reliabilities['stable-quality']:.3f}",
-                f"  noisy reliability:            {calibrator.reliabilities['replay-noisy']:.3f}",
-                f"  stable-quality weight:        {calibrator.weights['stable-quality']:.3f}",
-                f"  replay-noisy weight:          {calibrator.weights['replay-noisy']:.3f}",
-                f"  uncalibrated suite score:     {score:.3f}",
-                "",
-                "Bootstrap uncertainty",
-                "  stable weight 95% interval:    "
-                f"[{_format_number(stable_weight_interval['lower_2_5'])}, "
-                f"{_format_number(stable_weight_interval['upper_97_5'])}]",
-                "  noisy weight 95% interval:     "
-                f"[{_format_number(noisy_weight_interval['lower_2_5'])}, "
-                f"{_format_number(noisy_weight_interval['upper_97_5'])}]",
-                "  calibrated score 95% interval: "
-                f"[{_format_number(score_interval['lower_2_5'])}, "
-                f"{_format_number(score_interval['upper_97_5'])}]",
-                f"  defined learned-weight fits:  {stable_weight_interval['defined_replicates']}/100",
-                "",
-                "Verified behavior",
-                "  [PASS] judge replays reused fixed agent outputs",
-                "  [PASS] measurement diagnostics did not rewrite evaluator importance",
-                "  [PASS] equal weighting remained the transparent default",
-                "  [PASS] score and uncertainty diagnostics were produced",
-            ]
-        )
-        + "\n"
-    )

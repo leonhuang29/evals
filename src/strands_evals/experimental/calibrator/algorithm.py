@@ -3,16 +3,17 @@
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Protocol, runtime_checkable
 
 from typing_extensions import Any, Literal
 
 _EPSILON = 1e-15
 
-WeightingMethod = Literal["equal", "reliability", "inverse_step", "inverse_sqrt_step"]
+WeightingMethod = Literal["equal", "repeatability", "inverse_step", "inverse_sqrt_step"]
 WEIGHTING_METHODS: tuple[WeightingMethod, ...] = (
     "equal",
-    "reliability",
+    "repeatability",
     "inverse_step",
     "inverse_sqrt_step",
 )
@@ -36,7 +37,6 @@ class CalibrationExample:
     case_name: str
     agent_run: int
     evaluator_scores: Mapping[str, float]
-    target: float | None = None
 
 
 @dataclass(frozen=True)
@@ -51,7 +51,7 @@ class CalibrationData:
     judge_replays: int
     step_sizes: Mapping[str, float]
     variance_components: Mapping[str, Mapping[str, float]]
-    reliabilities: Mapping[str, float]
+    repeatabilities: Mapping[str, float]
 
     def evaluator_means(self) -> dict[str, float]:
         """Return the mean replay-aggregated score for each evaluator."""
@@ -105,11 +105,6 @@ class CalibrationAlgorithm(Protocol):
         """Return the algorithm implementation version."""
         ...
 
-    @property
-    def requires_target(self) -> bool:
-        """Return whether fitting requires an external target."""
-        ...
-
     def fit(self, data: CalibrationData) -> FittedCalibrationModel:
         """Fit and return an immutable scoring model."""
         ...
@@ -151,10 +146,9 @@ class WeightedCalibrationModel:
 
 
 class WeightingAlgorithm:
-    """Built-in adapter for the evaluator weighting methods."""
+    """Built-in adapter for experimental evaluator weighting diagnostics."""
 
     algorithm_version = 1
-    requires_target = False
 
     def __init__(self, method: WeightingMethod) -> None:
         """Initialize a built-in weighting algorithm.
@@ -175,7 +169,7 @@ class WeightingAlgorithm:
         weights = _compute_weight_vector(
             self.method,
             data.evaluator_names,
-            data.reliabilities,
+            data.repeatabilities,
             data.step_sizes,
         )
         used_equal_fallback = weights is None
@@ -185,7 +179,7 @@ class WeightingAlgorithm:
             algorithm_id=self.algorithm_id,
             algorithm_version=self.algorithm_version,
             weighting_method=self.method,
-            evaluator_weights=weights,
+            evaluator_weights=MappingProxyType(dict(weights)),
             used_equal_fallback=used_equal_fallback,
         )
 
@@ -193,7 +187,7 @@ class WeightingAlgorithm:
 def _compute_weight_vector(
     method: WeightingMethod,
     evaluator_names: tuple[str, ...] | list[str],
-    reliabilities: Mapping[str, float],
+    repeatabilities: Mapping[str, float],
     step_sizes: Mapping[str, float],
 ) -> dict[str, float] | None:
     """Compute and normalize one evaluator-weight vector."""
@@ -202,14 +196,14 @@ def _compute_weight_vector(
 
     unnormalized: dict[str, float] = {}
     for evaluator_name in evaluator_names:
-        reliability = reliabilities[evaluator_name]
+        repeatability = repeatabilities[evaluator_name]
         step = step_sizes[evaluator_name]
-        if method == "reliability":
-            value = reliability
+        if method == "repeatability":
+            value = repeatability
         elif method == "inverse_step":
-            value = reliability / step
+            value = repeatability / step
         else:
-            value = reliability / math.sqrt(step)
+            value = repeatability / math.sqrt(step)
         unnormalized[evaluator_name] = value
 
     total = sum(unnormalized.values())

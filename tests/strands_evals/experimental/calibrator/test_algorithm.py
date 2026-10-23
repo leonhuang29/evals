@@ -1,6 +1,6 @@
 import pytest
 
-from strands_evals.experimental import (
+from strands_evals.experimental.calibrator import (
     CalibrationData,
     CalibrationExample,
     CalibrationObservation,
@@ -38,7 +38,7 @@ def _data() -> CalibrationData:
             "coarse": {"agent": 0.0, "case": 0.5, "judge": 0.0},
             "fine": {"agent": 0.0, "case": 0.5, "judge": 0.0},
         },
-        reliabilities={"coarse": 1.0, "fine": 1.0},
+        repeatabilities={"coarse": 1.0, "fine": 1.0},
     )
 
 

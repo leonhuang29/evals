@@ -22,6 +22,7 @@ from ._calibration import (
     _collect_repeated_reports,
     _fit_dataset,
     _initial_calibration_state,
+    _normalize_configuration_value,
     _prepare_calibration_dataset,
     _validate_bootstrap_options,
     _validate_calibration_compatibility,
@@ -62,6 +63,8 @@ class CalibrationResult(BaseModel):
 class Calibrator(Generic[InputT, OutputT]):
     """Fit and apply a pluggable evaluator scoring algorithm.
 
+    This API is experimental and may change in a minor release.
+
     The calibrator is the public facade for collecting repeated evaluations,
     estimating measurement diagnostics, fitting one configured algorithm, and
     scoring reports. Algorithms receive a validated, immutable view of the
@@ -80,16 +83,16 @@ class Calibrator(Generic[InputT, OutputT]):
     ```
 
     Reports collected through `run_evaluations` carry a full experiment
-    fingerprint. Reports supplied directly to `fit` may omit that metadata; in
-    that case, later inputs are checked using evaluator names and the stable
-    case fields available in each report.
+    fingerprint. Later fits must match that calibration design. Scoring may use
+    new cases and different positive run or replay counts, but the evaluator
+    configuration must remain compatible with the fitted model.
     """
 
     def __init__(
         self,
+        *,
         step_sizes: dict[str, float],
         weighting_method: WeightingMethod | None = None,
-        *,
         algorithm: CalibrationAlgorithm | None = None,
     ) -> None:
         """Initialize a calibrator with a scoring algorithm.
@@ -159,8 +162,11 @@ class Calibrator(Generic[InputT, OutputT]):
 
     @property
     def model_parameters(self) -> dict[str, Any]:
-        """Return a copy of the fitted model parameters."""
-        return dict(self._model.parameters)
+        """Return deterministic JSON-compatible fitted model parameters."""
+        normalized = _normalize_configuration_value(dict(self._model.parameters))
+        if not isinstance(normalized, dict):
+            raise ValueError("fitted model parameters must normalize to a mapping")
+        return normalized
 
     @property
     def calibration_design(self) -> dict[str, int] | None:
@@ -186,9 +192,9 @@ class Calibrator(Generic[InputT, OutputT]):
         return {name: dict(components) for name, components in self._state.variance_components.items()}
 
     @property
-    def reliabilities(self) -> dict[str, float]:
-        """Return current-design reliability estimates by evaluator."""
-        return dict(self._state.reliabilities)
+    def repeatabilities(self) -> dict[str, float]:
+        """Return judge-repeatability estimates for fixed agent outputs."""
+        return dict(self._state.repeatabilities)
 
     @property
     def candidate_weights(self) -> dict[WeightingMethod, dict[str, float] | None]:
@@ -209,11 +215,11 @@ class Calibrator(Generic[InputT, OutputT]):
         return None if self._state.bootstrap_result is None else self._state.bootstrap_result.seed
 
     @property
-    def reliability_intervals(self) -> dict[str, dict[str, float | int | None]]:
-        """Return bootstrap summaries for evaluator reliability."""
+    def repeatability_intervals(self) -> dict[str, dict[str, float | int | None]]:
+        """Return bootstrap summaries for evaluator repeatability."""
         if self._state.bootstrap_result is None:
             return {}
-        return {name: dict(summary) for name, summary in self._state.bootstrap_result.reliability_intervals.items()}
+        return {name: dict(summary) for name, summary in self._state.bootstrap_result.repeatability_intervals.items()}
 
     @property
     def candidate_weight_intervals(
@@ -243,7 +249,7 @@ class Calibrator(Generic[InputT, OutputT]):
 
     @property
     def status(self) -> CalibrationStatus:
-        """Return whether target-based calibration has passed readiness."""
+        """Return the current calibration readiness status."""
         return self._state.status
 
     def run_evaluations(
@@ -411,8 +417,6 @@ class Calibrator(Generic[InputT, OutputT]):
             bootstrap_seed,
         )
         data = _build_algorithm_data(dataset, fitted_state, self._step_sizes)
-        if self._algorithm.requires_target and any(example.target is None for example in data.examples):
-            raise ValueError(f"algorithm {self.algorithm_id!r} requires target data")
         fitted_model = _validate_fitted_model(
             self._algorithm.fit(data),
             self._algorithm,
@@ -424,18 +428,18 @@ class Calibrator(Generic[InputT, OutputT]):
         return self
 
     def score(self, reports_by_run: list[list[EvaluationReport]]) -> float:
-        """Apply the fitted model to a repeated evaluation design.
+        """Apply the fitted model to compatible evaluation reports.
 
         Args:
-            reports_by_run: Reports grouped by agent run and judge replay.
+            reports_by_run: Reports grouped by agent run and judge replay. One
+                or more cases, runs, and replays are accepted.
 
         Returns:
             Predicted composite score.
 
         Raises:
-            ValueError: If the report hierarchy does not match the fitted
-                repetition design, stable case definitions, evaluator names,
-                or calibration context.
+            ValueError: If reports are internally unbalanced or their evaluator
+                set or configuration is incompatible with the fitted model.
         """
         dataset = self._scoring_dataset(reports_by_run)
         return _score_dataset(self._model, dataset)
@@ -444,17 +448,18 @@ class Calibrator(Generic[InputT, OutputT]):
         self,
         reports_by_run: list[list[EvaluationReport]],
     ) -> dict[WeightingMethod, float | None]:
-        """Score a repeated evaluation design under every candidate rule.
+        """Score compatible reports under every candidate rule.
 
         Args:
-            reports_by_run: Reports grouped by agent run and judge replay.
+            reports_by_run: Reports grouped by agent run and judge replay. One
+                or more cases, runs, and replays are accepted.
 
         Returns:
             Composite score for each candidate weighting rule.
 
         Raises:
-            ValueError: If the report hierarchy does not match the fitted
-                agent-run and judge-replay counts.
+            ValueError: If reports are internally unbalanced or their evaluator
+                set or configuration is incompatible with the fitted model.
         """
         dataset = self._scoring_dataset(reports_by_run)
         evaluator_scores = dataset.evaluator_scores()
@@ -475,6 +480,7 @@ class Calibrator(Generic[InputT, OutputT]):
             expected_context=self._state.calibration_context,
             expected_structure=self._state.calibration_structure,
             operation="scoring",
+            scoring=True,
         )
 
 
@@ -496,7 +502,7 @@ def _build_algorithm_data(
         judge_replays=dataset.replay_count,
         step_sizes=MappingProxyType(dict(step_sizes)),
         variance_components=MappingProxyType(variance_components),
-        reliabilities=MappingProxyType(dict(state.reliabilities)),
+        repeatabilities=MappingProxyType(dict(state.repeatabilities)),
     )
 
 
@@ -504,13 +510,10 @@ def _validate_algorithm(algorithm: object) -> CalibrationAlgorithm:
     """Validate the stable identity and fitting surface of an algorithm."""
     algorithm_id = getattr(algorithm, "algorithm_id", None)
     algorithm_version = getattr(algorithm, "algorithm_version", None)
-    requires_target = getattr(algorithm, "requires_target", None)
     if not isinstance(algorithm_id, str) or not algorithm_id:
         raise ValueError("algorithm_id must be a non-empty string")
     if not isinstance(algorithm_version, int) or isinstance(algorithm_version, bool) or algorithm_version < 1:
         raise ValueError("algorithm_version must be an integer greater than or equal to 1")
-    if not isinstance(requires_target, bool):
-        raise ValueError("requires_target must be a boolean")
     if not callable(getattr(algorithm, "fit", None)):
         raise ValueError("algorithm must define a callable fit method")
     return cast(CalibrationAlgorithm, algorithm)
@@ -531,6 +534,12 @@ def _validate_fitted_model(
     parameters = getattr(model, "parameters", None)
     if not isinstance(parameters, Mapping):
         raise ValueError("fitted model parameters must be a mapping")
+    try:
+        normalized_parameters = _normalize_configuration_value(dict(parameters))
+    except ValueError as error:
+        raise ValueError("fitted model parameters must be deterministic and JSON-compatible") from error
+    if not isinstance(normalized_parameters, dict):
+        raise ValueError("fitted model parameters must normalize to a mapping")
     weights = getattr(model, "weights", None)
     if weights is None:
         return cast(FittedCalibrationModel, model)

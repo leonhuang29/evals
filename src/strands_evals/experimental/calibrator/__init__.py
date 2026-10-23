@@ -4,7 +4,6 @@ from .algorithm import (
     CalibrationExample,
     CalibrationObservation,
     FittedCalibrationModel,
-    WeightedCalibrationModel,
     WeightingAlgorithm,
     WeightingMethod,
 )
@@ -19,7 +18,6 @@ __all__ = [
     "CalibrationStatus",
     "Calibrator",
     "FittedCalibrationModel",
-    "WeightedCalibrationModel",
     "WeightingAlgorithm",
     "WeightingMethod",
 ]
