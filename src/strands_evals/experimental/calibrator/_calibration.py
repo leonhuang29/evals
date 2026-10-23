@@ -8,6 +8,7 @@ import random
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from types import MappingProxyType
 
 from pydantic import BaseModel
 from strands.models.model import Model
@@ -18,6 +19,14 @@ from ...evaluators.evaluator import Evaluator
 from ...experiment import Experiment
 from ...types.evaluation import EvaluationData
 from ...types.evaluation_report import EvaluationReport
+from .algorithm import (
+    WEIGHTING_METHODS,
+    CalibrationExample,
+    CalibrationObservation,
+    WeightingMethod,
+    _compute_weight_vector,
+    _equal_weights,
+)
 
 _EPSILON = 1e-15
 _ERROR_REASON_PREFIXES = ("An error occurred:", "Evaluator error:")
@@ -32,14 +41,7 @@ _RUNTIME_CASE_FIELDS = {
     "session_id",
 }
 
-WeightingMethod = Literal["equal", "reliability", "inverse_step", "inverse_sqrt_step"]
 CalibrationStatus = Literal["uncalibrated", "equal_weight_fallback", "calibrated"]
-_WEIGHTING_METHODS: tuple[WeightingMethod, ...] = (
-    "equal",
-    "reliability",
-    "inverse_step",
-    "inverse_sqrt_step",
-)
 
 _BootstrapSummary = dict[str, float | int | None]
 _ParsedReports = list[list[dict[str, dict[str, float]]]]
@@ -70,7 +72,6 @@ class _BootstrapResult:
 class _CalibrationState:
     """Complete immutable-by-replacement state for one calibrator."""
 
-    weights: dict[str, float]
     variance_components: dict[str, dict[str, float]]
     reliabilities: dict[str, float]
     candidate_weights: dict[WeightingMethod, dict[str, float] | None]
@@ -185,6 +186,41 @@ class _CalibrationDataset:
                 case_scores.append(_mean(values))
             evaluator_scores[evaluator_name] = _mean(case_scores)
         return evaluator_scores
+
+    def observations(self) -> tuple[CalibrationObservation, ...]:
+        """Flatten the balanced hierarchy for a pluggable algorithm."""
+        return tuple(
+            CalibrationObservation(
+                evaluator_name=evaluator_name,
+                case_name=case_name,
+                agent_run=run_index,
+                judge_replay=replay_index,
+                score=report_scores[evaluator_name][case_name],
+            )
+            for run_index, run_reports in enumerate(self.parsed)
+            for replay_index, report_scores in enumerate(run_reports)
+            for evaluator_name in self.evaluator_names
+            for case_name in self.case_names
+        )
+
+    def examples(self) -> tuple[CalibrationExample, ...]:
+        """Aggregate judge replays to one feature vector per case and agent run."""
+        return tuple(
+            CalibrationExample(
+                case_name=case_name,
+                agent_run=run_index,
+                evaluator_scores=MappingProxyType(
+                    {
+                        evaluator_name: _mean(
+                            [report_scores[evaluator_name][case_name] for report_scores in run_reports]
+                        )
+                        for evaluator_name in self.evaluator_names
+                    }
+                ),
+            )
+            for run_index, run_reports in enumerate(self.parsed)
+            for case_name in self.case_names
+        )
 
     def bootstrap_sample(self, rng: random.Random) -> "_CalibrationDataset":
         """Resample cases, runs, and replays while preserving evaluator vectors."""
@@ -582,17 +618,10 @@ def _estimate_statistics(dataset: _CalibrationDataset, evaluator_name: str) -> _
     )
 
 
-def _equal_weights(step_sizes: dict[str, float]) -> dict[str, float]:
-    """Return an equal-weight vector for the configured evaluators."""
-    weight = 1.0 / len(step_sizes)
-    return {name: weight for name in step_sizes}
-
-
 def _initial_calibration_state(step_sizes: dict[str, float]) -> _CalibrationState:
     """Return the equal-weight state used before calibration."""
-    equal_weights = _equal_weights(step_sizes)
+    equal_weights = _equal_weights(tuple(step_sizes))
     return _CalibrationState(
-        weights=equal_weights,
         variance_components={},
         reliabilities={},
         candidate_weights={
@@ -609,42 +638,13 @@ def _initial_calibration_state(step_sizes: dict[str, float]) -> _CalibrationStat
     )
 
 
-def _compute_weights(
-    method: WeightingMethod,
-    evaluator_names: tuple[str, ...] | list[str],
-    reliabilities: dict[str, float],
-    step_sizes: dict[str, float],
-) -> dict[str, float] | None:
-    """Compute and normalize one candidate evaluator-weight vector."""
-    if method == "equal":
-        return _equal_weights(step_sizes)
-
-    unnormalized: dict[str, float] = {}
-    for evaluator_name in evaluator_names:
-        reliability = reliabilities[evaluator_name]
-        step = step_sizes[evaluator_name]
-        if method == "reliability":
-            value = reliability
-        elif method == "inverse_step":
-            value = reliability / step
-        else:
-            value = reliability / math.sqrt(step)
-        unnormalized[evaluator_name] = value
-
-    total = sum(unnormalized.values())
-    if total <= _EPSILON:
-        return None
-    return {name: value / total for name, value in unnormalized.items()}
-
-
 def _fit_dataset(
     dataset: _CalibrationDataset,
     step_sizes: dict[str, float],
-    weighting_method: WeightingMethod,
     bootstrap_replicates: int,
     bootstrap_seed: int,
 ) -> _CalibrationState:
-    """Estimate statistics and return a complete replacement fitted state."""
+    """Estimate measurement diagnostics and return a replacement fitted state."""
     variance_components: dict[str, dict[str, float]] = {}
     reliabilities: dict[str, float] = {}
     for evaluator_name in dataset.evaluator_names:
@@ -653,15 +653,14 @@ def _fit_dataset(
         reliabilities[evaluator_name] = statistics.reliability
 
     candidate_weights = {
-        method: _compute_weights(
+        method: _compute_weight_vector(
             method,
             dataset.evaluator_names,
             reliabilities,
             step_sizes,
         )
-        for method in _WEIGHTING_METHODS
+        for method in WEIGHTING_METHODS
     }
-    selected_weights = candidate_weights[weighting_method]
     bootstrap_result = (
         _run_bootstrap(
             dataset,
@@ -672,9 +671,7 @@ def _fit_dataset(
         if bootstrap_replicates
         else None
     )
-    has_reliability_signal = any(reliability > _EPSILON for reliability in reliabilities.values())
     return _CalibrationState(
-        weights=_equal_weights(step_sizes) if selected_weights is None else selected_weights,
         variance_components=variance_components,
         reliabilities=reliabilities,
         candidate_weights=candidate_weights,
@@ -682,9 +679,7 @@ def _fit_dataset(
         calibration_design=(dataset.run_count, dataset.replay_count),
         calibration_context=(None if dataset.calibration_context is None else dict(dataset.calibration_context)),
         calibration_structure=dataset.structure,
-        status=(
-            "equal_weight_fallback" if weighting_method != "equal" and not has_reliability_signal else "calibrated"
-        ),
+        status="uncalibrated",
     )
 
 
@@ -698,9 +693,9 @@ def _run_bootstrap(
     rng = random.Random(seed)
     reliability_distributions: dict[str, list[float | None]] = {name: [] for name in dataset.evaluator_names}
     weight_distributions: dict[WeightingMethod, dict[str, list[float | None]]] = {
-        method: {name: [] for name in dataset.evaluator_names} for method in _WEIGHTING_METHODS
+        method: {name: [] for name in dataset.evaluator_names} for method in WEIGHTING_METHODS
     }
-    score_distributions: dict[WeightingMethod, list[float | None]] = {method: [] for method in _WEIGHTING_METHODS}
+    score_distributions: dict[WeightingMethod, list[float | None]] = {method: [] for method in WEIGHTING_METHODS}
 
     for _ in range(replicates):
         sampled = dataset.bootstrap_sample(rng)
@@ -711,8 +706,8 @@ def _run_bootstrap(
             reliability_distributions[evaluator_name].append(statistics.reliability)
 
         evaluator_scores = sampled.evaluator_scores()
-        for method in _WEIGHTING_METHODS:
-            weights = _compute_weights(
+        for method in WEIGHTING_METHODS:
+            weights = _compute_weight_vector(
                 method,
                 dataset.evaluator_names,
                 sampled_reliabilities,
@@ -732,7 +727,7 @@ def _run_bootstrap(
         },
         candidate_weight_intervals={
             method: {name: _summarize_distribution(values) for name, values in weight_distributions[method].items()}
-            for method in _WEIGHTING_METHODS
+            for method in WEIGHTING_METHODS
         },
         composite_score_intervals={
             method: _summarize_distribution(values) for method, values in score_distributions.items()

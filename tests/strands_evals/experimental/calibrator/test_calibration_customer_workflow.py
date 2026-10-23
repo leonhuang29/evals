@@ -95,25 +95,22 @@ def test_customer_can_run_and_inspect_calibration() -> None:
     assert score == pytest.approx(0.5)
     assert len(result.reports_by_run) == 2
     assert all(len(run_reports) == 3 for run_reports in result.reports_by_run)
-    assert result.status == "calibrated"
-    assert result.weights == pytest.approx(
-        {
-            "stable-quality": 1.0,
-            "replay-noisy": 0.0,
-        }
-    )
+    assert result.status == "uncalibrated"
+    assert result.algorithm_id == "equal_weighting"
+    assert result.weights == {
+        "stable-quality": 0.5,
+        "replay-noisy": 0.5,
+    }
     assert calibrator.is_fitted is True
-    assert calibrator.status == "calibrated"
+    assert calibrator.status == "uncalibrated"
     assert calibrator.calibration_design == {
         "agent_runs": 2,
         "judge_replays": 3,
     }
-    assert calibrator.weights == pytest.approx(
-        {
-            "stable-quality": 1.0,
-            "replay-noisy": 0.0,
-        }
-    )
+    assert calibrator.weights == {
+        "stable-quality": 0.5,
+        "replay-noisy": 0.5,
+    }
     assert calibrator.reliabilities == pytest.approx(
         {
             "stable-quality": 1.0,
@@ -155,14 +152,14 @@ def test_customer_can_run_and_inspect_calibration() -> None:
                 "  stable-quality:                0.500",
                 "  replay-noisy:                  0.500",
                 "",
-                f"Learned calibration ({calibrator.weighting_method})",
+                f"Measurement fit ({calibrator.algorithm_id})",
                 f"  stable judge variance:        {calibrator.variance_components['stable-quality']['judge']:.3f}",
                 f"  noisy judge variance:         {calibrator.variance_components['replay-noisy']['judge']:.3f}",
                 f"  stable reliability:           {calibrator.reliabilities['stable-quality']:.3f}",
                 f"  noisy reliability:            {calibrator.reliabilities['replay-noisy']:.3f}",
                 f"  stable-quality weight:        {calibrator.weights['stable-quality']:.3f}",
                 f"  replay-noisy weight:          {calibrator.weights['replay-noisy']:.3f}",
-                f"  calibrated suite score:       {score:.3f}",
+                f"  uncalibrated suite score:     {score:.3f}",
                 "",
                 "Bootstrap uncertainty",
                 "  stable weight 95% interval:    "
@@ -178,9 +175,9 @@ def test_customer_can_run_and_inspect_calibration() -> None:
                 "",
                 "Verified behavior",
                 "  [PASS] judge replays reused fixed agent outputs",
-                "  [PASS] stable case signal received full learned weight",
-                "  [PASS] replay-only noise received zero learned weight",
-                "  [PASS] calibrated score and uncertainty were produced",
+                "  [PASS] measurement diagnostics did not rewrite evaluator importance",
+                "  [PASS] equal weighting remained the transparent default",
+                "  [PASS] score and uncertainty diagnostics were produced",
             ]
         )
         + "\n"

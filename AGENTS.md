@@ -104,6 +104,7 @@ strands-evals/
 │   ├── experimental/                         # Stable public API, evolving surface
 │   │   ├── calibrator/                       # Statistical evaluator calibration
 │   │   │   ├── __init__.py                   # Calibration public exports
+│   │   │   ├── algorithm.py                  # Pluggable fitting/model interfaces
 │   │   │   ├── calibration.py                # Public calibration facade
 │   │   │   └── _calibration.py               # Private data/statistics helpers
 │   │   └── redteam/                          # Adversarial / red-team evaluation
@@ -219,6 +220,7 @@ strands-evals/
 │   ├── detectors/
 │   ├── experimental/
 │   │   ├── calibrator/                       # Mirrors experimental/calibrator/
+│   │   │   ├── test_algorithm.py
 │   │   │   ├── test_calibration.py
 │   │   │   └── test_calibration_customer_workflow.py
 │   │   └── redteam/                          # Mirrors src/strands_evals/experimental/redteam/

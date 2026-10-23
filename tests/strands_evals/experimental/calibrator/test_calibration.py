@@ -1,8 +1,10 @@
+from collections.abc import Mapping
+
 import pytest
 
 from strands_evals import Case, Experiment
 from strands_evals.evaluators import Evaluator
-from strands_evals.experimental import CalibrationResult, Calibrator
+from strands_evals.experimental import CalibrationData, CalibrationResult, Calibrator
 from strands_evals.experimental.calibrator._calibration import (
     _build_calibration_context,
     _step_size_fingerprint,
@@ -96,6 +98,34 @@ class _OpaqueConfiguration:
     pass
 
 
+class _MaximumScoreModel:
+    algorithm_id = "maximum_score"
+    algorithm_version = 1
+    weights = None
+
+    def __init__(self, observation_count: int) -> None:
+        self._observation_count = observation_count
+
+    @property
+    def parameters(self) -> dict[str, int | str]:
+        return {
+            "observation_count": self._observation_count,
+            "reducer": "maximum",
+        }
+
+    def predict(self, evaluator_scores: Mapping[str, float]) -> float:
+        return max(evaluator_scores.values())
+
+
+class _MaximumScoreAlgorithm:
+    algorithm_id = "maximum_score"
+    algorithm_version = 1
+    requires_target = False
+
+    def fit(self, data: CalibrationData) -> _MaximumScoreModel:
+        return _MaximumScoreModel(len(data.observations))
+
+
 def test_calibration_context_rejects_unstored_evaluator_configuration() -> None:
     evaluator = _ConfiguredEvaluator(accepted_input="good", name="quality")
     del evaluator.accepted_input
@@ -129,6 +159,9 @@ def test_calibration_context_rejects_opaque_evaluator_configuration() -> None:
 def test_calibrator_starts_with_equal_weights() -> None:
     calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
 
+    assert calibrator.algorithm_id == "equal_weighting"
+    assert calibrator.algorithm_version == 1
+    assert calibrator.weighting_method == "equal"
     assert calibrator.weights == {"stable": 0.5, "noisy": 0.5}
     assert calibrator.is_fitted is False
     assert calibrator.status == "uncalibrated"
@@ -255,20 +288,24 @@ def test_score_rejects_single_report() -> None:
             _report(
                 {
                     "stable": {"case-a": 0.0, "case-b": 1.0},
-                    "noisy": {"case-a": 1.0, "case-b": 1.0},
+                    "noisy": {"case-a": 1.0, "case-b": 0.0},
                 }
             )
         )
 
 
-def test_fit_learns_reliability_weighted_vector() -> None:
-    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+def test_legacy_weighting_algorithm_can_be_selected_explicitly() -> None:
+    calibrator = Calibrator(
+        step_sizes={"stable": 0.25, "noisy": 0.25},
+        weighting_method="inverse_sqrt_step",
+    )
 
     returned = calibrator.fit(_calibration_reports())
 
     assert returned is calibrator
     assert calibrator.is_fitted is True
-    assert calibrator.status == "calibrated"
+    assert calibrator.status == "uncalibrated"
+    assert calibrator.algorithm_id == "inverse_sqrt_step_weighting"
     assert calibrator.weights["stable"] == pytest.approx(1.0)
     assert calibrator.weights["noisy"] == pytest.approx(0.0)
 
@@ -338,6 +375,37 @@ def test_calibrator_can_select_candidate_weighting_method() -> None:
 
     assert calibrator.weighting_method == "inverse_step"
     assert calibrator.weights == pytest.approx({"fine": 0.8, "coarse": 0.2})
+
+
+def test_calibrator_can_fit_custom_non_weighting_algorithm() -> None:
+    calibrator = Calibrator(
+        step_sizes={"stable": 0.25, "noisy": 0.25},
+        algorithm=_MaximumScoreAlgorithm(),
+    )
+
+    calibrator.fit(_calibration_reports())
+    score = calibrator.score(
+        _repeat_report(
+            _report(
+                {
+                    "stable": {"case-a": 0.0, "case-b": 1.0},
+                    "noisy": {"case-a": 1.0, "case-b": 0.0},
+                }
+            )
+        )
+    )
+
+    assert calibrator.algorithm_id == "maximum_score"
+    assert calibrator.algorithm_version == 1
+    assert calibrator.weighting_method is None
+    assert calibrator.weights is None
+    assert calibrator.model_parameters == {
+        "observation_count": 16,
+        "reducer": "maximum",
+    }
+    assert score == pytest.approx(1.0)
+    assert calibrator.is_fitted is True
+    assert calibrator.status == "uncalibrated"
 
 
 def test_score_candidates_compares_composite_sensitivity() -> None:
@@ -461,7 +529,10 @@ def test_fit_rejects_invalid_bootstrap_seed() -> None:
 
 
 def test_score_uses_fitted_weights() -> None:
-    calibrator = Calibrator(step_sizes={"stable": 0.25, "noisy": 0.25})
+    calibrator = Calibrator(
+        step_sizes={"stable": 0.25, "noisy": 0.25},
+        weighting_method="inverse_sqrt_step",
+    )
     calibrator.fit(_calibration_reports())
 
     score = calibrator.score(
@@ -613,7 +684,7 @@ def test_fit_keeps_equal_weights_when_no_case_signal_exists() -> None:
 
     assert calibrator.weights == {"first": 0.5, "second": 0.5}
     assert calibrator.is_fitted is True
-    assert calibrator.status == "equal_weight_fallback"
+    assert calibrator.status == "uncalibrated"
     assert calibrator.candidate_weights == {
         "equal": {"first": 0.5, "second": 0.5},
         "reliability": None,
@@ -654,7 +725,7 @@ def test_explicit_equal_weighting_is_not_reported_as_fallback() -> None:
 
     assert calibrator.weights == {"first": 0.5, "second": 0.5}
     assert calibrator.is_fitted is True
-    assert calibrator.status == "calibrated"
+    assert calibrator.status == "uncalibrated"
 
 
 def test_run_evaluations_reuses_each_agent_output_for_judge_replays() -> None:
@@ -692,7 +763,14 @@ def test_run_evaluations_reuses_each_agent_output_for_judge_replays() -> None:
     assert len(result.reports_by_run) == 2
     assert all(len(run_reports) == 3 for run_reports in result.reports_by_run)
     assert result.weights == {"first": 0.5, "second": 0.5}
-    assert result.status == "calibrated"
+    assert result.algorithm_id == "equal_weighting"
+    assert result.algorithm_version == 1
+    assert result.model_parameters == {
+        "weighting_method": "equal",
+        "weights": {"first": 0.5, "second": 0.5},
+        "used_equal_fallback": False,
+    }
+    assert result.status == "uncalibrated"
     assert result.calibration_context == calibrator.calibration_context
     assert calibrator.weights == {"first": 0.5, "second": 0.5}
     assert calibrator.is_fitted is True
@@ -1015,7 +1093,7 @@ async def test_run_evaluations_async_accepts_async_task() -> None:
     assert evaluator.calls == 8
     assert result.score == pytest.approx(0.5)
     assert len(result.reports_by_run) == 2
-    assert result.status == "calibrated"
+    assert result.status == "uncalibrated"
     assert calibrator.weights == {"quality": 1.0}
     assert calibrator.is_fitted is True
 
@@ -1036,4 +1114,13 @@ def test_calibrator_rejects_unknown_weighting_method() -> None:
         Calibrator(
             step_sizes={"quality": 0.5},
             weighting_method="unknown",  # type: ignore[arg-type]
+        )
+
+
+def test_calibrator_rejects_algorithm_and_weighting_method() -> None:
+    with pytest.raises(ValueError, match="algorithm and weighting_method are mutually exclusive"):
+        Calibrator(
+            step_sizes={"quality": 0.5},
+            weighting_method="equal",
+            algorithm=_MaximumScoreAlgorithm(),
         )
