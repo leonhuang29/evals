@@ -114,6 +114,15 @@ class CalibrationAlgorithm(Protocol):
         ...
 
 
+@runtime_checkable
+class RestorableCalibrationAlgorithm(CalibrationAlgorithm, Protocol):
+    """Calibration algorithm that can rebuild a model from saved parameters."""
+
+    def restore(self, parameters: Mapping[str, Any]) -> FittedCalibrationModel:
+        """Restore a fitted model from deterministic profile parameters."""
+        ...
+
+
 @dataclass(frozen=True)
 class EqualWeightingModel:
     """Fitted equal-weight average."""
@@ -153,6 +162,12 @@ class EqualWeightingAlgorithm:
         """Fit an equal-weight model over the configured evaluators."""
         return EqualWeightingModel(
             evaluator_weights=MappingProxyType(_equal_weights(data.evaluator_names)),
+        )
+
+    def restore(self, parameters: Mapping[str, Any]) -> EqualWeightingModel:
+        """Restore an equal-weight model from saved profile parameters."""
+        return EqualWeightingModel(
+            evaluator_weights=MappingProxyType(_restore_weights(parameters)),
         )
 
 
@@ -233,6 +248,21 @@ class DiagnosticWeightingAlgorithm:
             used_equal_fallback=used_equal_fallback,
         )
 
+    def restore(self, parameters: Mapping[str, Any]) -> DiagnosticWeightingModel:
+        """Restore a diagnostic model from saved profile parameters."""
+        if parameters.get("weighting_method") != self.method:
+            raise ValueError("saved weighting method does not match the configured algorithm")
+        used_equal_fallback = parameters.get("used_equal_fallback", False)
+        if not isinstance(used_equal_fallback, bool):
+            raise ValueError("saved used_equal_fallback must be a boolean")
+        return DiagnosticWeightingModel(
+            algorithm_id=self.algorithm_id,
+            algorithm_version=self.algorithm_version,
+            weighting_method=self.method,
+            evaluator_weights=MappingProxyType(_restore_weights(parameters)),
+            used_equal_fallback=used_equal_fallback,
+        )
+
 
 def _compute_weight_vector(
     method: WeightingMethod,
@@ -266,3 +296,18 @@ def _equal_weights(evaluator_names: tuple[str, ...] | list[str]) -> dict[str, fl
     """Return an equal-weight vector for the supplied evaluators."""
     weight = 1.0 / len(evaluator_names)
     return {name: weight for name in evaluator_names}
+
+
+def _restore_weights(parameters: Mapping[str, Any]) -> dict[str, float]:
+    """Validate and copy a saved evaluator-weight mapping."""
+    raw_weights = parameters.get("weights")
+    if not isinstance(raw_weights, Mapping):
+        raise ValueError("saved model parameters must contain a weights mapping")
+    weights: dict[str, float] = {}
+    for evaluator_name, weight in raw_weights.items():
+        if not isinstance(evaluator_name, str):
+            raise ValueError("saved weight names must be strings")
+        if not isinstance(weight, (int, float)) or isinstance(weight, bool):
+            raise ValueError("saved weights must be numeric")
+        weights[evaluator_name] = float(weight)
+    return weights

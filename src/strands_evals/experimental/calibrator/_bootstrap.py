@@ -1,5 +1,6 @@
 """Hierarchical bootstrap diagnostics for evaluator calibration."""
 
+import copy
 import math
 import random
 from dataclasses import dataclass
@@ -141,6 +142,7 @@ def _bootstrap_sample(
         case_signatures=tuple(sampled_case_signatures),
         run_count=dataset.run_count,
         replay_count=dataset.replay_count,
+        calibration_context=copy.deepcopy(dataset.calibration_context),
     )
 
 
