@@ -1,5 +1,6 @@
 from .calibrator import (
     CalibrationAlgorithm,
+    CalibrationApplicationResult,
     CalibrationData,
     CalibrationExample,
     CalibrationObservation,
@@ -17,6 +18,7 @@ from .calibrator import (
 
 __all__ = [
     "CalibrationAlgorithm",
+    "CalibrationApplicationResult",
     "CalibrationData",
     "CalibrationExample",
     "CalibrationObservation",
