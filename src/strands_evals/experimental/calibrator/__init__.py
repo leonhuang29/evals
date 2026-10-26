@@ -7,13 +7,14 @@ from .algorithm import (
     EqualWeightingAlgorithm,
     FittedCalibrationModel,
 )
-from .calibration import Calibrator
+from .calibration import CalibrationResult, Calibrator
 
 __all__ = [
     "CalibrationAlgorithm",
     "CalibrationData",
     "CalibrationExample",
     "CalibrationObservation",
+    "CalibrationResult",
     "CalibrationStatus",
     "Calibrator",
     "EqualWeightingAlgorithm",
