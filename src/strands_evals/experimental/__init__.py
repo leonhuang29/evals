@@ -3,6 +3,8 @@ from .calibrator import (
     CalibrationData,
     CalibrationExample,
     CalibrationObservation,
+    CalibrationStatus,
+    Calibrator,
     EqualWeightingAlgorithm,
     FittedCalibrationModel,
 )
@@ -12,6 +14,8 @@ __all__ = [
     "CalibrationData",
     "CalibrationExample",
     "CalibrationObservation",
+    "CalibrationStatus",
+    "Calibrator",
     "EqualWeightingAlgorithm",
     "FittedCalibrationModel",
 ]
