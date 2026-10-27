@@ -6,11 +6,17 @@ from strands_evals.experimental.calibrator import (
     CalibrationData,
     CalibrationExample,
     CalibrationObservation,
+    CalibrationTarget,
+    CalibrationTargetDefinition,
     EqualWeightingAlgorithm,
 )
 
 
-def _data() -> CalibrationData:
+def _data(
+    *,
+    target: float | None = None,
+    target_definition: CalibrationTargetDefinition | None = None,
+) -> CalibrationData:
     return CalibrationData(
         observations=(
             CalibrationObservation("first", "case-a", 0, 0, 0.2),
@@ -21,6 +27,7 @@ def _data() -> CalibrationData:
                 case_name="case-a",
                 agent_run=0,
                 evaluator_scores=MappingProxyType({"first": 0.2, "second": 0.8}),
+                target=target,
             ),
         ),
         evaluator_names=("first", "second"),
@@ -35,6 +42,7 @@ def _data() -> CalibrationData:
             }
         ),
         repeatabilities=MappingProxyType({"first": 1.0, "second": 1.0}),
+        target_definition=target_definition,
     )
 
 
@@ -43,6 +51,77 @@ def test_calibration_data_exposes_evaluator_means() -> None:
         "first": pytest.approx(0.2),
         "second": pytest.approx(0.8),
     }
+
+
+def test_calibration_data_exposes_complete_targets() -> None:
+    definition = CalibrationTargetDefinition(name="task_success", version="1")
+    data = _data(target=1.0, target_definition=definition)
+
+    assert data.has_targets is True
+    assert data.target_definition == definition
+    assert data.examples[0].target == pytest.approx(1.0)
+
+
+def test_calibration_data_exposes_absent_targets() -> None:
+    assert _data().has_targets is False
+
+
+def test_calibration_data_rejects_target_without_definition() -> None:
+    with pytest.raises(ValueError, match="target_definition is required"):
+        _data(target=1.0)
+
+
+def test_calibration_data_rejects_definition_without_complete_targets() -> None:
+    definition = CalibrationTargetDefinition(name="task_success", version="1")
+
+    with pytest.raises(ValueError, match="every calibration example must contain a target"):
+        _data(target_definition=definition)
+
+
+@pytest.mark.parametrize(
+    ("name", "version", "message"),
+    [
+        ("", "1", "name"),
+        ("task_success", "", "version"),
+    ],
+)
+def test_target_definition_rejects_empty_identity(
+    name: str,
+    version: str,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        CalibrationTargetDefinition(name=name, version=version)
+
+
+@pytest.mark.parametrize(
+    ("case_name", "agent_run", "value", "message"),
+    [
+        ("", 0, 1.0, "case_name"),
+        ("case-a", -1, 1.0, "agent_run"),
+        ("case-a", 0, float("nan"), "finite"),
+        ("case-a", 0, True, "finite"),
+    ],
+)
+def test_calibration_target_rejects_invalid_values(
+    case_name: str,
+    agent_run: int,
+    value: float,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        CalibrationTarget(
+            case_name=case_name,
+            agent_run=agent_run,
+            value=value,
+        )
+
+
+def test_calibration_target_normalizes_integer_values() -> None:
+    target = CalibrationTarget(case_name="case-a", agent_run=0, value=1)
+
+    assert target.value == 1.0
+    assert isinstance(target.value, float)
 
 
 def test_equal_weighting_algorithm_fits_common_model_interface() -> None:

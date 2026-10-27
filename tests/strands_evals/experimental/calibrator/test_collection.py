@@ -2,7 +2,15 @@ import pytest
 
 from strands_evals import Case, Experiment
 from strands_evals.evaluators import Evaluator
-from strands_evals.experimental import CalibrationResult, Calibrator
+from strands_evals.experimental import (
+    CalibrationData,
+    CalibrationResult,
+    CalibrationTarget,
+    CalibrationTargetDefinition,
+    Calibrator,
+    EqualWeightingAlgorithm,
+)
+from strands_evals.experimental.calibrator.algorithm import EqualWeightingModel
 from strands_evals.types import EvaluationData, EvaluationOutput
 from strands_evals.types.evaluation_report import EvaluationReport
 
@@ -21,6 +29,15 @@ class _CountingEvaluator(Evaluator[str, str]):
 class _FailingEvaluator(Evaluator[str, str]):
     def evaluate(self, evaluation_case: EvaluationData[str, str]) -> list[EvaluationOutput]:
         raise RuntimeError("judge crashed")
+
+
+class _RecordingEqualWeightingAlgorithm(EqualWeightingAlgorithm):
+    def __init__(self) -> None:
+        self.data: CalibrationData | None = None
+
+    def fit(self, data: CalibrationData) -> EqualWeightingModel:
+        self.data = data
+        return super().fit(data)
 
 
 def _experiment(*evaluators: Evaluator[str, str]) -> Experiment[str, str]:
@@ -102,6 +119,67 @@ def test_calibration_result_is_a_point_in_time_copy() -> None:
 
     assert result.score == original_score
     assert calibrator.weights == {"quality": 1.0}
+
+
+def test_run_evaluations_passes_targets_to_algorithm() -> None:
+    algorithm = _RecordingEqualWeightingAlgorithm()
+    calibrator = Calibrator(
+        step_sizes={"quality": 0.5},
+        algorithm=algorithm,
+    )
+    target_definition = CalibrationTargetDefinition(name="task_success", version="1")
+
+    calibrator.run_evaluations(
+        _experiment(_CountingEvaluator(name="quality")),
+        lambda case: case.input,
+        agent_runs=2,
+        judge_replays=2,
+        targets=[
+            CalibrationTarget(case_name="good-case", agent_run=0, value=1.0),
+            CalibrationTarget(case_name="bad-case", agent_run=0, value=0.0),
+            CalibrationTarget(case_name="good-case", agent_run=1, value=1.0),
+            CalibrationTarget(case_name="bad-case", agent_run=1, value=0.0),
+        ],
+        target_definition=target_definition,
+    )
+
+    assert algorithm.data is not None
+    assert algorithm.data.target_definition == target_definition
+    assert {(example.case_name, example.agent_run): example.target for example in algorithm.data.examples} == {
+        ("good-case", 0): 1.0,
+        ("bad-case", 0): 0.0,
+        ("good-case", 1): 1.0,
+        ("bad-case", 1): 0.0,
+    }
+
+
+def test_run_evaluations_rejects_invalid_targets_before_execution() -> None:
+    evaluator = _CountingEvaluator(name="quality")
+    task_calls = 0
+
+    def task(case: Case[str, str]) -> str:
+        nonlocal task_calls
+        task_calls += 1
+        return case.input
+
+    calibrator = Calibrator(step_sizes={"quality": 0.5})
+
+    with pytest.raises(ValueError, match="missing=.*bad-case.*1"):
+        calibrator.run_evaluations(
+            _experiment(evaluator),
+            task,
+            agent_runs=2,
+            judge_replays=2,
+            targets=[
+                CalibrationTarget(case_name="good-case", agent_run=0, value=1.0),
+                CalibrationTarget(case_name="bad-case", agent_run=0, value=0.0),
+                CalibrationTarget(case_name="good-case", agent_run=1, value=1.0),
+            ],
+            target_definition=CalibrationTargetDefinition(name="task_success", version="1"),
+        )
+
+    assert task_calls == 0
+    assert evaluator.calls == 0
 
 
 def test_run_evaluations_rejects_one_case_before_task_execution() -> None:

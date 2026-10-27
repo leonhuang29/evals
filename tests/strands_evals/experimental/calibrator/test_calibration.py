@@ -2,7 +2,11 @@ from collections.abc import Mapping
 
 import pytest
 
-from strands_evals.experimental import Calibrator
+from strands_evals.experimental import (
+    CalibrationTarget,
+    CalibrationTargetDefinition,
+    Calibrator,
+)
 from strands_evals.experimental.calibrator import CalibrationData
 from strands_evals.types.evaluation_report import EvaluationReport
 
@@ -92,6 +96,15 @@ class _MaximumScoreAlgorithm:
 
     def fit(self, data: CalibrationData) -> _MaximumScoreModel:
         return _MaximumScoreModel(len(data.observations))
+
+
+class _RecordingMaximumScoreAlgorithm(_MaximumScoreAlgorithm):
+    def __init__(self) -> None:
+        self.data: CalibrationData | None = None
+
+    def fit(self, data: CalibrationData) -> _MaximumScoreModel:
+        self.data = data
+        return super().fit(data)
 
 
 class _OpaqueParameterModel:
@@ -212,6 +225,124 @@ def test_calibrator_can_fit_custom_non_weighting_algorithm() -> None:
         "reducer": "maximum",
     }
     assert calibrator.score(_calibration_reports()) == pytest.approx(0.75)
+
+
+def test_fit_passes_case_run_targets_to_algorithm() -> None:
+    algorithm = _RecordingMaximumScoreAlgorithm()
+    calibrator = Calibrator(
+        step_sizes={"stable": 0.5, "noisy": 0.5},
+        algorithm=algorithm,
+    )
+    definition = CalibrationTargetDefinition(name="tau3_reward", version="1")
+    targets = [
+        CalibrationTarget(case_name="case-b", agent_run=1, value=0),
+        CalibrationTarget(case_name="case-a", agent_run=0, value=1),
+        CalibrationTarget(case_name="case-b", agent_run=0, value=0),
+        CalibrationTarget(case_name="case-a", agent_run=1, value=1),
+    ]
+
+    calibrator.fit(
+        _calibration_reports(),
+        targets=targets,
+        target_definition=definition,
+    )
+
+    assert algorithm.data is not None
+    assert algorithm.data.has_targets is True
+    assert algorithm.data.target_definition == definition
+    assert {(example.case_name, example.agent_run): example.target for example in algorithm.data.examples} == {
+        ("case-a", 0): 1.0,
+        ("case-b", 0): 0.0,
+        ("case-a", 1): 1.0,
+        ("case-b", 1): 0.0,
+    }
+
+
+@pytest.mark.parametrize(
+    ("targets", "target_definition", "message"),
+    [
+        (
+            [CalibrationTarget(case_name="case-a", agent_run=0, value=1.0)],
+            None,
+            "provided together",
+        ),
+        (
+            None,
+            CalibrationTargetDefinition(name="task_success", version="1"),
+            "provided together",
+        ),
+        (
+            [],
+            CalibrationTargetDefinition(name="task_success", version="1"),
+            "one value for every case",
+        ),
+    ],
+)
+def test_fit_requires_targets_and_definition_together(
+    targets: list[CalibrationTarget] | None,
+    target_definition: CalibrationTargetDefinition | None,
+    message: str,
+) -> None:
+    calibrator = Calibrator(step_sizes={"stable": 0.5, "noisy": 0.5})
+
+    with pytest.raises(ValueError, match=message):
+        calibrator.fit(
+            _calibration_reports(),
+            targets=targets,
+            target_definition=target_definition,
+        )
+
+
+def test_fit_rejects_missing_target() -> None:
+    targets = [
+        CalibrationTarget(case_name="case-a", agent_run=0, value=1.0),
+        CalibrationTarget(case_name="case-b", agent_run=0, value=0.0),
+        CalibrationTarget(case_name="case-a", agent_run=1, value=1.0),
+    ]
+    calibrator = Calibrator(step_sizes={"stable": 0.5, "noisy": 0.5})
+
+    with pytest.raises(ValueError, match="missing=.*case-b.*1"):
+        calibrator.fit(
+            _calibration_reports(),
+            targets=targets,
+            target_definition=CalibrationTargetDefinition(name="task_success", version="1"),
+        )
+
+
+def test_fit_rejects_unexpected_target() -> None:
+    targets = [
+        CalibrationTarget(case_name=case_name, agent_run=agent_run, value=1.0)
+        for agent_run in range(2)
+        for case_name in ("case-a", "case-b")
+    ]
+    targets.append(CalibrationTarget(case_name="unknown-case", agent_run=0, value=0.0))
+    calibrator = Calibrator(step_sizes={"stable": 0.5, "noisy": 0.5})
+
+    with pytest.raises(ValueError, match="unexpected=.*unknown-case"):
+        calibrator.fit(
+            _calibration_reports(),
+            targets=targets,
+            target_definition=CalibrationTargetDefinition(name="task_success", version="1"),
+        )
+
+
+def test_fit_rejects_duplicate_target() -> None:
+    duplicate = CalibrationTarget(case_name="case-a", agent_run=0, value=1.0)
+    targets = [
+        duplicate,
+        CalibrationTarget(case_name="case-b", agent_run=0, value=0.0),
+        CalibrationTarget(case_name="case-a", agent_run=1, value=1.0),
+        CalibrationTarget(case_name="case-b", agent_run=1, value=0.0),
+        duplicate,
+    ]
+    calibrator = Calibrator(step_sizes={"stable": 0.5, "noisy": 0.5})
+
+    with pytest.raises(ValueError, match="duplicate case-run"):
+        calibrator.fit(
+            _calibration_reports(),
+            targets=targets,
+            target_definition=CalibrationTargetDefinition(name="task_success", version="1"),
+        )
 
 
 def test_fit_rejects_non_serializable_model_parameters() -> None:

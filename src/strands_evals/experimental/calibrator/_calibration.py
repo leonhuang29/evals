@@ -16,7 +16,12 @@ from strands.models.model import Model
 from ...case import Case
 from ...evaluators.evaluator import Evaluator
 from ...types.evaluation_report import EvaluationReport
-from .algorithm import CalibrationExample, CalibrationObservation
+from .algorithm import (
+    CalibrationExample,
+    CalibrationObservation,
+    CalibrationTarget,
+    CalibrationTargetDefinition,
+)
 
 _EPSILON = 1e-15
 _ERROR_REASON_PREFIXES = ("An error occurred:", "Evaluator error:")
@@ -184,8 +189,12 @@ class _CalibrationDataset:
             evaluator_scores[evaluator_name] = _mean(case_scores)
         return evaluator_scores
 
-    def examples(self) -> tuple[CalibrationExample, ...]:
+    def examples(
+        self,
+        targets: dict[tuple[str, int], float] | None = None,
+    ) -> tuple[CalibrationExample, ...]:
         """Aggregate judge replays to one feature vector per case and agent run."""
+        target_values = {} if targets is None else targets
         return tuple(
             CalibrationExample(
                 case_name=case_name,
@@ -198,6 +207,7 @@ class _CalibrationDataset:
                         for evaluator_name in self.evaluator_names
                     }
                 ),
+                target=target_values.get((case_name, run_index)),
             )
             for run_index, run_reports in enumerate(self.parsed)
             for case_name in self.case_names
@@ -235,6 +245,44 @@ def _prepare_calibration_dataset(
         scoring=scoring,
     )
     return dataset
+
+
+def _prepare_calibration_targets(
+    case_names: tuple[str, ...],
+    agent_runs: int,
+    targets: list[CalibrationTarget] | None,
+    target_definition: CalibrationTargetDefinition | None,
+) -> tuple[CalibrationTargetDefinition | None, dict[tuple[str, int], float]]:
+    """Validate and index optional case-run targets."""
+    if targets is None and target_definition is None:
+        return None, {}
+    if targets is None or target_definition is None:
+        raise ValueError("targets and target_definition must be provided together")
+    if not isinstance(targets, list):
+        raise ValueError("targets must be a list of CalibrationTarget values")
+    if not targets:
+        raise ValueError("targets must contain one value for every case and agent run")
+    if not isinstance(target_definition, CalibrationTargetDefinition):
+        raise ValueError("target_definition must be a CalibrationTargetDefinition")
+
+    target_values: dict[tuple[str, int], float] = {}
+    for index, target in enumerate(targets):
+        if not isinstance(target, CalibrationTarget):
+            raise ValueError(f"target at index {index} must be a CalibrationTarget")
+        key = (target.case_name, target.agent_run)
+        if key in target_values:
+            raise ValueError(
+                f"targets contain a duplicate case-run value: case={target.case_name!r}, agent_run={target.agent_run}"
+            )
+        target_values[key] = target.value
+
+    expected = {(case_name, run_index) for run_index in range(agent_runs) for case_name in case_names}
+    observed = set(target_values)
+    missing = sorted(expected - observed)
+    unexpected = sorted(observed - expected)
+    if missing or unexpected:
+        raise ValueError(f"targets do not match the calibration case-runs; missing={missing}, unexpected={unexpected}")
+    return target_definition, target_values
 
 
 def _build_calibration_context(

@@ -35,12 +35,47 @@ class CalibrationObservation:
 
 
 @dataclass(frozen=True)
+class CalibrationTargetDefinition:
+    """Stable identity of an external quality target."""
+
+    name: str
+    version: str
+
+    def __post_init__(self) -> None:
+        """Validate the target identity."""
+        if not isinstance(self.name, str) or not self.name.strip():
+            raise ValueError("target definition name must be a non-empty string")
+        if not isinstance(self.version, str) or not self.version.strip():
+            raise ValueError("target definition version must be a non-empty string")
+
+
+@dataclass(frozen=True)
+class CalibrationTarget:
+    """One external target value for a case and agent run."""
+
+    case_name: str
+    agent_run: int
+    value: float
+
+    def __post_init__(self) -> None:
+        """Validate one target observation."""
+        if not isinstance(self.case_name, str) or not self.case_name:
+            raise ValueError("target case_name must be a non-empty string")
+        if not isinstance(self.agent_run, int) or isinstance(self.agent_run, bool) or self.agent_run < 0:
+            raise ValueError("target agent_run must be a non-negative integer")
+        if not isinstance(self.value, (int, float)) or isinstance(self.value, bool) or not math.isfinite(self.value):
+            raise ValueError("target value must be a finite number")
+        object.__setattr__(self, "value", float(self.value))
+
+
+@dataclass(frozen=True)
 class CalibrationExample:
     """Replay-aggregated evaluator features for one case and agent run."""
 
     case_name: str
     agent_run: int
     evaluator_scores: Mapping[str, float]
+    target: float | None = None
 
 
 @dataclass(frozen=True)
@@ -56,6 +91,15 @@ class CalibrationData:
     step_sizes: Mapping[str, float]
     variance_components: Mapping[str, Mapping[str, float]]
     repeatabilities: Mapping[str, float]
+    target_definition: CalibrationTargetDefinition | None = None
+
+    def __post_init__(self) -> None:
+        """Require targets to be either complete or absent."""
+        targeted_examples = sum(example.target is not None for example in self.examples)
+        if self.target_definition is None and targeted_examples:
+            raise ValueError("target_definition is required when examples contain targets")
+        if self.target_definition is not None and targeted_examples != len(self.examples):
+            raise ValueError("every calibration example must contain a target")
 
     def evaluator_means(self) -> dict[str, float]:
         """Return the mean replay-aggregated score for each evaluator."""
@@ -64,6 +108,11 @@ class CalibrationData:
             for evaluator_name, score in example.evaluator_scores.items():
                 values[evaluator_name].append(score)
         return {name: sum(scores) / len(scores) for name, scores in values.items()}
+
+    @property
+    def has_targets(self) -> bool:
+        """Return whether complete external targets are available."""
+        return self.target_definition is not None
 
 
 @runtime_checkable

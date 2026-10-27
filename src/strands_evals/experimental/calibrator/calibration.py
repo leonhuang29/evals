@@ -31,6 +31,7 @@ from ._calibration import (
     _initial_calibration_state,
     _normalize_configuration_value,
     _prepare_calibration_dataset,
+    _prepare_calibration_targets,
     _validate_calibration_compatibility,
     _validate_evaluator_names,
     _validate_repetition_counts,
@@ -41,6 +42,8 @@ from .algorithm import (
     WEIGHTING_METHODS,
     CalibrationAlgorithm,
     CalibrationData,
+    CalibrationTarget,
+    CalibrationTargetDefinition,
     DiagnosticWeightingAlgorithm,
     EqualWeightingAlgorithm,
     EqualWeightingModel,
@@ -335,6 +338,8 @@ class Calibrator:
         *,
         agent_runs: int,
         judge_replays: int,
+        targets: list[CalibrationTarget] | None = None,
+        target_definition: CalibrationTargetDefinition | None = None,
         max_workers: int = 1,
         bootstrap_replicates: int = 0,
         bootstrap_seed: int = 0,
@@ -346,6 +351,10 @@ class Calibrator:
             task: Task function evaluated by the experiment.
             agent_runs: Number of independent task executions per case.
             judge_replays: Number of evaluator passes over each fixed output.
+            targets: Optional external target value for every case and agent
+                run.
+            target_definition: Stable identity of the supplied target. Must be
+                provided together with `targets`.
             max_workers: Maximum parallel case workers used by the experiment.
             bootstrap_replicates: Number of hierarchical bootstrap samples.
                 Zero disables bootstrap diagnostics.
@@ -366,6 +375,8 @@ class Calibrator:
                 task,
                 agent_runs=agent_runs,
                 judge_replays=judge_replays,
+                targets=targets,
+                target_definition=target_definition,
                 max_workers=max_workers,
                 bootstrap_replicates=bootstrap_replicates,
                 bootstrap_seed=bootstrap_seed,
@@ -382,6 +393,8 @@ class Calibrator:
         *,
         agent_runs: int,
         judge_replays: int,
+        targets: list[CalibrationTarget] | None = None,
+        target_definition: CalibrationTargetDefinition | None = None,
         max_workers: int = 10,
         bootstrap_replicates: int = 0,
         bootstrap_seed: int = 0,
@@ -393,6 +406,10 @@ class Calibrator:
             task: Synchronous or asynchronous task function.
             agent_runs: Number of independent task executions per case.
             judge_replays: Number of evaluator passes over each fixed output.
+            targets: Optional external target value for every case and agent
+                run.
+            target_definition: Stable identity of the supplied target. Must be
+                provided together with `targets`.
             max_workers: Maximum parallel case workers used by the experiment.
             bootstrap_replicates: Number of hierarchical bootstrap samples.
                 Zero disables bootstrap diagnostics.
@@ -410,6 +427,12 @@ class Calibrator:
         _validate_evaluator_names(
             {evaluator.get_name() for evaluator in experiment.evaluators},
             set(self._step_sizes),
+        )
+        _prepare_calibration_targets(
+            tuple(case.name or f"case_{index}" for index, case in enumerate(experiment.cases)),
+            agent_runs,
+            targets,
+            target_definition,
         )
         calibration_context = _build_calibration_context(
             experiment.cases,
@@ -436,6 +459,8 @@ class Calibrator:
         )
         self.fit(
             reports_by_run,
+            targets=targets,
+            target_definition=target_definition,
             bootstrap_replicates=bootstrap_replicates,
             bootstrap_seed=bootstrap_seed,
         )
@@ -456,6 +481,8 @@ class Calibrator:
         self,
         reports_by_run: list[list[EvaluationReport]],
         *,
+        targets: list[CalibrationTarget] | None = None,
+        target_definition: CalibrationTargetDefinition | None = None,
         bootstrap_replicates: int = 0,
         bootstrap_seed: int = 0,
     ) -> Self:
@@ -463,6 +490,10 @@ class Calibrator:
 
         Args:
             reports_by_run: Reports grouped by agent run and judge replay.
+            targets: Optional external target value for every case and agent
+                run in `reports_by_run`.
+            target_definition: Stable identity of the supplied target. Must be
+                provided together with `targets`.
             bootstrap_replicates: Number of hierarchical bootstrap samples.
                 Zero disables bootstrap diagnostics.
             bootstrap_seed: Random seed used for reproducible resampling.
@@ -484,8 +515,20 @@ class Calibrator:
             expected_structure_fingerprint=self._state.fit_structure_fingerprint,
             operation="fit",
         )
+        validated_target_definition, target_values = _prepare_calibration_targets(
+            dataset.case_names,
+            dataset.run_count,
+            targets,
+            target_definition,
+        )
         fitted_state = _fit_dataset(dataset)
-        data = _build_algorithm_data(dataset, fitted_state, self._step_sizes)
+        data = _build_algorithm_data(
+            dataset,
+            fitted_state,
+            self._step_sizes,
+            target_values,
+            validated_target_definition,
+        )
         fitted_model = _validate_fitted_model(
             self._algorithm.fit(data),
             self._algorithm,
@@ -710,6 +753,8 @@ def _build_algorithm_data(
     dataset: _CalibrationDataset,
     state: _CalibrationState,
     step_sizes: dict[str, float],
+    target_values: dict[tuple[str, int], float],
+    target_definition: CalibrationTargetDefinition | None,
 ) -> CalibrationData:
     """Build an immutable public view of one validated calibration dataset."""
     variance_components = {
@@ -717,7 +762,7 @@ def _build_algorithm_data(
     }
     return CalibrationData(
         observations=dataset.observations(),
-        examples=dataset.examples(),
+        examples=dataset.examples(target_values or None),
         evaluator_names=dataset.evaluator_names,
         case_names=dataset.case_names,
         agent_runs=dataset.run_count,
@@ -725,6 +770,7 @@ def _build_algorithm_data(
         step_sizes=MappingProxyType(dict(step_sizes)),
         variance_components=MappingProxyType(variance_components),
         repeatabilities=MappingProxyType(dict(state.repeatabilities)),
+        target_definition=target_definition,
     )
 
 
