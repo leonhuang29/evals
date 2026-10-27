@@ -11,11 +11,12 @@ from .algorithm import (
     RestorableCalibrationAlgorithm,
     WeightingMethod,
 )
-from .calibration import CalibrationResult, Calibrator
+from .calibration import CalibrationApplicationResult, CalibrationResult, Calibrator
 from .calibration_profile import CalibrationProfile, ProfileCompatibility
 
 __all__ = [
     "CalibrationAlgorithm",
+    "CalibrationApplicationResult",
     "CalibrationData",
     "CalibrationExample",
     "CalibrationObservation",

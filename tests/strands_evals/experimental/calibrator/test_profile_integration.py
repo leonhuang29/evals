@@ -4,10 +4,15 @@ import pytest
 
 from strands_evals import Case, Experiment
 from strands_evals.evaluators import Evaluator
-from strands_evals.experimental import Calibrator
+from strands_evals.experimental import (
+    CalibrationApplicationResult,
+    CalibrationProfile,
+    Calibrator,
+)
 from strands_evals.experimental.calibrator import (
     CalibrationData,
     DiagnosticWeightingAlgorithm,
+    EqualWeightingAlgorithm,
 )
 from strands_evals.experimental.calibrator._calibration import _build_calibration_context
 from strands_evals.types import EvaluationData, EvaluationOutput
@@ -94,6 +99,10 @@ class _MaximumScoreAlgorithm:
         if parameters != {"reducer": "maximum"}:
             raise ValueError("unexpected saved parameters")
         return _MaximumScoreModel()
+
+
+class _NewerMaximumScoreAlgorithm(_MaximumScoreAlgorithm):
+    algorithm_version = 2
 
 
 def test_context_free_profile_restores_equal_model_and_diagnostics() -> None:
@@ -204,7 +213,83 @@ def test_contextual_profile_rejects_changed_evaluator_configuration() -> None:
     )
 
     with pytest.raises(ValueError, match="changed_components=\\['evaluators'\\]"):
-        calibrator.score([[changed_report]])
+        calibrator.apply_profile([[changed_report]])
+
+
+def test_profile_application_preserves_historical_reports_and_provenance(tmp_path) -> None:
+    calibrator = Calibrator(step_sizes={"first": 0.5, "second": 0.5})
+    calibrator.fit(_reports())
+    profile = calibrator.profile
+    assert profile is not None
+    profile_path = tmp_path / "equal-profile.json"
+    profile.to_file(str(profile_path))
+    restored = Calibrator.from_profile(CalibrationProfile.from_file(str(profile_path)))
+    current_report = _report(
+        {
+            "first": {"new-case": 0.25},
+            "second": {"new-case": 1.0},
+        }
+    )
+    historical_report = current_report.model_copy(deep=True)
+    historical_report.overall_score = 0.125
+    for case in historical_report.cases:
+        case["metadata"] = {"source": "historical"}
+    original_historical = historical_report.model_copy(deep=True)
+
+    current = restored.apply_profile([[current_report]])
+    historical = restored.apply_profile([[historical_report]])
+
+    assert isinstance(historical, CalibrationApplicationResult)
+    assert historical.raw_evaluator_scores == pytest.approx(
+        {
+            "first": 0.25,
+            "second": 1.0,
+        }
+    )
+    assert historical.raw_equal_score == pytest.approx(0.625)
+    assert historical.selected_score == pytest.approx(current.selected_score)
+    assert historical.selected_score == pytest.approx(0.625)
+    assert historical.calibrated_probability is None
+    assert historical.selected_method == "equal_weighting"
+    assert historical.algorithm_version == 1
+    assert historical.weights == {
+        "first": 0.5,
+        "second": 0.5,
+    }
+    assert historical.profile_id == profile.profile_id
+    assert historical.profile_schema_version == profile.schema_version
+    assert historical.status == "uncalibrated"
+    assert historical.reports_by_run[0][0] == original_historical
+    assert historical_report == original_historical
+
+    historical.reports_by_run[0][0].scores[0] = 0.0
+    historical.reports_by_run[0][0].overall_score = 1.0
+
+    assert historical_report == original_historical
+    assert restored.profile == profile
+
+
+def test_profile_application_requires_compatible_profile_version() -> None:
+    calibrator = Calibrator(
+        step_sizes={"first": 0.5, "second": 0.5},
+        algorithm=_MaximumScoreAlgorithm(),
+    )
+    calibrator.fit(_reports())
+    profile = calibrator.profile
+    assert profile is not None
+
+    with pytest.raises(ValueError, match="cannot restore stale calibration profile"):
+        Calibrator.from_profile(profile, algorithm=_NewerMaximumScoreAlgorithm())
+
+    with pytest.raises(ValueError, match="cannot restore incompatible calibration profile"):
+        Calibrator.from_profile(profile, algorithm=EqualWeightingAlgorithm())
+
+
+def test_profile_application_requires_a_fitted_or_restored_profile() -> None:
+    calibrator = Calibrator(step_sizes={"first": 0.5, "second": 0.5})
+
+    with pytest.raises(ValueError, match="fitted or restored calibration profile is required"):
+        calibrator.apply_profile(_reports())
 
 
 def test_diagnostic_profile_restores_without_a_custom_algorithm() -> None:
@@ -234,6 +319,11 @@ def test_custom_profile_restores_through_supplied_algorithm() -> None:
         Calibrator.from_profile(profile)
 
     restored = Calibrator.from_profile(profile, algorithm=_MaximumScoreAlgorithm())
+    application = restored.apply_profile(_reports())
 
     assert restored.weights is None
     assert restored.score(_reports()) == pytest.approx(0.75)
+    assert application.raw_equal_score == pytest.approx(0.5)
+    assert application.selected_score == pytest.approx(0.75)
+    assert application.weights is None
+    assert application.calibrated_probability is None

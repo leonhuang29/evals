@@ -72,6 +72,29 @@ class CalibrationResult(BaseModel):
     calibration_context: dict[str, Any] | None
 
 
+class CalibrationApplicationResult(BaseModel):
+    """Point-in-time application of a profile to existing reports.
+
+    The raw reports are deep copies of the supplied evidence. The selected
+    score is stored separately so applying a profile does not overwrite the
+    originally reported result. `calibrated_probability` is reserved for the
+    later target-calibration profile extension and remains `None` here.
+    """
+
+    reports_by_run: list[list[EvaluationReport]]
+    raw_evaluator_scores: dict[str, float]
+    raw_equal_score: float
+    selected_score: float
+    selected_method: str
+    algorithm_version: int
+    model_parameters: dict[str, Any]
+    weights: dict[str, float] | None
+    status: CalibrationStatus
+    profile_id: str
+    profile_schema_version: int
+    calibrated_probability: float | None = None
+
+
 class Calibrator:
     """Fit a pluggable scoring algorithm from repeated evaluation reports.
 
@@ -526,6 +549,59 @@ class Calibrator:
             scoring=True,
         )
         return _score_dataset(self._model, dataset)
+
+    def apply_profile(
+        self,
+        reports_by_run: list[list[EvaluationReport]],
+    ) -> CalibrationApplicationResult:
+        """Apply the fitted profile without replacing original report values.
+
+        Args:
+            reports_by_run: Existing reports grouped by agent run and judge
+                replay. Historical reports may use new cases and different
+                positive repetition counts when their evaluator configuration
+                remains compatible with the profile.
+
+        Returns:
+            A point-in-time result containing the raw evaluator vector, raw
+            equal average, selected score, profile provenance, and copies of
+            the original reports.
+
+        Raises:
+            ValueError: If no profile has been fitted or restored, or if the
+                reports are incompatible with that profile.
+        """
+        if self._profile is None:
+            raise ValueError("a fitted or restored calibration profile is required")
+
+        dataset = _prepare_calibration_dataset(
+            reports_by_run,
+            configured_evaluators=set(self._step_sizes),
+            step_sizes=self._step_sizes,
+            expected_design=self._state.calibration_design,
+            expected_context=self._state.calibration_context,
+            expected_structure=self._state.calibration_structure,
+            expected_structure_fingerprint=self._state.fit_structure_fingerprint,
+            operation="scoring",
+            scoring=True,
+        )
+        raw_evaluator_scores = dataset.evaluator_scores()
+        profile = self._profile.model_copy(deep=True)
+        return CalibrationApplicationResult(
+            reports_by_run=[
+                [report.model_copy(deep=True) for report in replay_reports] for replay_reports in reports_by_run
+            ],
+            raw_evaluator_scores=raw_evaluator_scores,
+            raw_equal_score=sum(raw_evaluator_scores.values()) / len(raw_evaluator_scores),
+            selected_score=_score_dataset(self._model, dataset),
+            selected_method=self.algorithm_id,
+            algorithm_version=self.algorithm_version,
+            model_parameters=self.model_parameters,
+            weights=self.weights,
+            status=self.status,
+            profile_id=profile.profile_id,
+            profile_schema_version=profile.schema_version,
+        )
 
     def score_candidates(
         self,
