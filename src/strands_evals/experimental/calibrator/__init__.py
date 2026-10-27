@@ -1,3 +1,4 @@
+from ._calibration import CalibrationStatus
 from .algorithm import (
     CalibrationAlgorithm,
     CalibrationData,
@@ -6,12 +7,15 @@ from .algorithm import (
     EqualWeightingAlgorithm,
     FittedCalibrationModel,
 )
+from .calibration import Calibrator
 
 __all__ = [
     "CalibrationAlgorithm",
     "CalibrationData",
     "CalibrationExample",
     "CalibrationObservation",
+    "CalibrationStatus",
+    "Calibrator",
     "EqualWeightingAlgorithm",
     "FittedCalibrationModel",
 ]
