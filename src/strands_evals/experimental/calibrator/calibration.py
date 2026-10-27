@@ -1,12 +1,18 @@
 """Experimental evaluator calibration facade."""
 
+import asyncio
+import inspect
 import math
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from types import MappingProxyType
 from typing import Any, cast
 
+from pydantic import BaseModel
 from typing_extensions import Self
 
+from ...case import Case
+from ...experiment import Experiment
+from ...types.evaluation import InputT, OutputT
 from ...types.evaluation_report import EvaluationReport
 from ._calibration import (
     CalibrationStatus,
@@ -16,7 +22,11 @@ from ._calibration import (
     _initial_calibration_state,
     _normalize_configuration_value,
     _prepare_calibration_dataset,
+    _validate_calibration_compatibility,
+    _validate_evaluator_names,
+    _validate_repetition_counts,
 )
+from ._collection import _collect_repeated_reports
 from .algorithm import (
     CalibrationAlgorithm,
     CalibrationData,
@@ -25,6 +35,24 @@ from .algorithm import (
     FittedCalibrationModel,
     _equal_weights,
 )
+
+
+class CalibrationResult(BaseModel):
+    """Point-in-time calibration result for in-memory inspection.
+
+    Mutating the returned observations does not recompute `score` or update the
+    fitted calibrator. This model is not a stable persistence format, and custom
+    `EvaluationReport` subclasses are not guaranteed to survive serialization
+    and deserialization.
+    """
+
+    score: float
+    reports_by_run: list[list[EvaluationReport]]
+    weights: dict[str, float] | None
+    algorithm_id: str
+    algorithm_version: int
+    model_parameters: dict[str, Any]
+    status: CalibrationStatus
 
 
 class Calibrator:
@@ -140,6 +168,102 @@ class Calibrator:
     def status(self) -> CalibrationStatus:
         """Return the current calibration readiness status."""
         return self._state.status
+
+    def run_evaluations(
+        self,
+        experiment: Experiment[InputT, OutputT],
+        task: Callable[[Case[InputT, OutputT]], OutputT | dict[str, Any]],
+        *,
+        agent_runs: int,
+        judge_replays: int,
+        max_workers: int = 1,
+    ) -> CalibrationResult:
+        """Run repeated evaluations, fit the algorithm, and return the result.
+
+        Args:
+            experiment: Existing experiment containing cases and evaluators.
+            task: Task function evaluated by the experiment.
+            agent_runs: Number of independent task executions per case.
+            judge_replays: Number of evaluator passes over each fixed output.
+            max_workers: Maximum parallel case workers used by the experiment.
+
+        Returns:
+            The predicted score, raw reports, and fitted-model snapshot.
+
+        Raises:
+            ValueError: If `task` is async or repetition counts are invalid.
+        """
+        if inspect.iscoroutinefunction(task):
+            raise ValueError("Async task is not supported. Please use run_evaluations_async instead.")
+
+        return asyncio.run(
+            self.run_evaluations_async(
+                experiment,
+                task,
+                agent_runs=agent_runs,
+                judge_replays=judge_replays,
+                max_workers=max_workers,
+            )
+        )
+
+    async def run_evaluations_async(
+        self,
+        experiment: Experiment[InputT, OutputT],
+        task: Callable[
+            [Case[InputT, OutputT]],
+            OutputT | dict[str, Any] | Awaitable[OutputT | dict[str, Any]],
+        ],
+        *,
+        agent_runs: int,
+        judge_replays: int,
+        max_workers: int = 10,
+    ) -> CalibrationResult:
+        """Collect repeated reports, fit the algorithm, and return a snapshot.
+
+        Args:
+            experiment: Existing experiment containing cases and evaluators.
+            task: Synchronous or asynchronous task function.
+            agent_runs: Number of independent task executions per case.
+            judge_replays: Number of evaluator passes over each fixed output.
+            max_workers: Maximum parallel case workers used by the experiment.
+
+        Returns:
+            The predicted score, raw reports, and fitted-model snapshot.
+        """
+        _validate_repetition_counts(agent_runs, judge_replays)
+        if len(experiment.cases) < 2:
+            raise ValueError("calibration requires at least two cases")
+        _validate_calibration_compatibility(
+            expected_design=self._state.calibration_design,
+            actual_design=(agent_runs, judge_replays),
+            operation="evaluation",
+        )
+        if max_workers < 1:
+            raise ValueError(f"max_workers must be >= 1, got {max_workers}")
+        _validate_evaluator_names(
+            {evaluator.get_name() for evaluator in experiment.evaluators},
+            set(self._step_sizes),
+        )
+
+        reports_by_run = await _collect_repeated_reports(
+            experiment,
+            task,
+            agent_runs=agent_runs,
+            judge_replays=judge_replays,
+            max_workers=max_workers,
+        )
+        self.fit(reports_by_run)
+        return CalibrationResult(
+            score=self.score(reports_by_run),
+            reports_by_run=[
+                [report.model_copy(deep=True) for report in replay_reports] for replay_reports in reports_by_run
+            ],
+            weights=self.weights,
+            algorithm_id=self.algorithm_id,
+            algorithm_version=self.algorithm_version,
+            model_parameters=self.model_parameters,
+            status=self.status,
+        )
 
     def fit(self, reports_by_run: list[list[EvaluationReport]]) -> Self:
         """Fit the configured algorithm from repeated evaluation reports.
