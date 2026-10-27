@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "experiment_id": "tau3-calibration-readiness-v1",
+  "frozen_at": "2026-10-19",
+  "sources": {
+    "harbor": {
+      "repository": "harbor-framework/harbor",
+      "commit": "e2aafe266e269abb4feee9a80e02f31bfb96044e",
+      "adapter": "tau3-bench"
+    },
+    "tau2_bench": {
+      "repository": "sierra-research/tau2-bench",
+      "commit": "96a3ef92329baf908ffe9dfe188cea34e8701d2a",
+      "split": "base"
+    }
+  },
+  "sampling": {
+    "method": "sha256_rank_within_domain",
+    "seed": 20261019,
+    "domains": [
+      "airline",
+      "retail",
+      "telecom",
+      "banking_knowledge"
+    ],
+    "smoke_cases_per_domain": 3,
+    "main_cases_per_domain": 20
+  },
+  "collection": {
+    "smoke": {
+      "agent_runs": 2,
+      "judge_replays": 3
+    },
+    "main": {
+      "agent_runs": 3,
+      "judge_replays": 3
+    }
+  },
+  "models": {
+    "agent": {
+      "provider": "amazon-bedrock",
+      "model_id": "global.anthropic.claude-sonnet-4-6",
+      "reasoning": "medium",
+      "temperature": null
+    },
+    "simulated_user": {
+      "provider": "amazon-bedrock",
+      "model_id": "global.anthropic.claude-sonnet-4-6",
+      "reasoning": "low",
+      "temperature": null
+    },
+    "judge": {
+      "provider": "amazon-bedrock",
+      "model_id": "global.anthropic.claude-sonnet-4-6",
+      "temperature": null
+    }
+  },
+  "evaluators": [
+    {
+      "name": "GoalSuccessRateEvaluator",
+      "version": "v0",
+      "declared_step_size": 1.0
+    },
+    {
+      "name": "InstructionFollowingEvaluator",
+      "version": "v0",
+      "declared_step_size": 1.0
+    },
+    {
+      "name": "HelpfulnessEvaluator",
+      "version": "v0",
+      "declared_step_size": 0.166
+    }
+  ],
+  "native_metric": {
+    "name": "reward",
+    "range": [
+      0.0,
+      1.0
+    ],
+    "role": "held_out_external_quality_signal",
+    "included_in_learned_composite": false
+  },
+  "analysis": {
+    "case_counts": [
+      12,
+      20,
+      40,
+      80
+    ],
+    "agent_run_counts": [
+      2,
+      3
+    ],
+    "judge_replay_counts": [
+      2,
+      3
+    ],
+    "subsamples_per_design": 100,
+    "bootstrap_replicates": 500,
+    "seed": 20261019
+  },
+  "candidate_readiness_thresholds": {
+    "minimum_defined_bootstrap_fraction": 0.95,
+    "maximum_composite_interval_width": 0.1,
+    "maximum_weight_interval_width": 0.25,
+    "minimum_held_out_correlation_delta": -0.05
+  }
+}

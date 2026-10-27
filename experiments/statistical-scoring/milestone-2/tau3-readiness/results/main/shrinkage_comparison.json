@@ -1,0 +1,732 @@
+{
+  "experiment_id": "tau3-calibration-readiness-v1",
+  "stage": "main",
+  "weighting_method": "inverse_sqrt_step",
+  "complete_case_count": 80,
+  "agent_runs": 3,
+  "judge_replays": 2,
+  "subsamples_per_case_count": 100,
+  "learned_fractions": [
+    0.0,
+    0.25,
+    0.5,
+    0.75,
+    1.0
+  ],
+  "minimum_held_out_correlation_delta": -0.05,
+  "comparisons": [
+    {
+      "case_count": 12,
+      "agent_runs": 3,
+      "judge_replays": 2,
+      "fractions": [
+        {
+          "learned_fraction": 0.0,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.33333333333333326,
+            "HelpfulnessEvaluator": 0.33333333333333326,
+            "InstructionFollowingEvaluator": 0.33333333333333326
+          },
+          "composite_score": {
+            "mean": 0.8541968518518519,
+            "lower_2_5": 0.7768427083333332,
+            "median": 0.8518101851851851,
+            "upper_97_5": 0.9321103009259258
+          },
+          "composite_score_standard_deviation": 0.039115040665215046,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.1453353269897333,
+            "lower_2_5": -0.2605661453164468,
+            "median": 0.1514446457963951,
+            "upper_97_5": 0.44015356488778695
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.0,
+            "lower_2_5": 0.0,
+            "median": 0.0,
+            "upper_97_5": 0.0
+          },
+          "beats_equal_fraction": 0.0,
+          "within_guardrail_fraction": 1.0
+        },
+        {
+          "learned_fraction": 0.25,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.31500202598572796,
+            "HelpfulnessEvaluator": 0.40662419600171806,
+            "InstructionFollowingEvaluator": 0.278373778012554
+          },
+          "composite_score": {
+            "mean": 0.850780811983251,
+            "lower_2_5": 0.7742862156990508,
+            "median": 0.8494211098963096,
+            "upper_97_5": 0.9232154881185534
+          },
+          "composite_score_standard_deviation": 0.03842145761846648,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.1392469880266065,
+            "lower_2_5": -0.283341181070452,
+            "median": 0.13761493700660826,
+            "upper_97_5": 0.4262386559320759
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.006088338963126789,
+            "lower_2_5": -0.04403228453858263,
+            "median": -0.004558879582414611,
+            "upper_97_5": 0.03018154292554828
+          },
+          "beats_equal_fraction": 0.36,
+          "within_guardrail_fraction": 0.99
+        },
+        {
+          "learned_fraction": 0.5,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.29667071863812255,
+            "HelpfulnessEvaluator": 0.4799150586701028,
+            "InstructionFollowingEvaluator": 0.22341422269177458
+          },
+          "composite_score": {
+            "mean": 0.84736477211465,
+            "lower_2_5": 0.7680646878765102,
+            "median": 0.8447411328361351,
+            "upper_97_5": 0.9164786070392823
+          },
+          "composite_score_standard_deviation": 0.038365963927506505,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.13043299755892715,
+            "lower_2_5": -0.2888011889078045,
+            "median": 0.13222470812628012,
+            "upper_97_5": 0.4277751269776728
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.014902329430806152,
+            "lower_2_5": -0.09600481088255043,
+            "median": -0.012402255850691012,
+            "upper_97_5": 0.05256153423904427
+          },
+          "beats_equal_fraction": 0.35,
+          "within_guardrail_fraction": 0.81
+        },
+        {
+          "learned_fraction": 0.75,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.2783394112905172,
+            "HelpfulnessEvaluator": 0.5532059213384877,
+            "InstructionFollowingEvaluator": 0.1684546673709952
+          },
+          "composite_score": {
+            "mean": 0.843948732246049,
+            "lower_2_5": 0.7670168813518023,
+            "median": 0.8443303364244985,
+            "upper_97_5": 0.9145177264065667
+          },
+          "composite_score_standard_deviation": 0.038951286935334624,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.11908367372989023,
+            "lower_2_5": -0.27204079355994104,
+            "median": 0.11357845479106837,
+            "upper_97_5": 0.4360320187607893
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.026251653259843067,
+            "lower_2_5": -0.1561740256223124,
+            "median": -0.020355560367448566,
+            "upper_97_5": 0.06836157624491015
+          },
+          "beats_equal_fraction": 0.36,
+          "within_guardrail_fraction": 0.68
+        },
+        {
+          "learned_fraction": 1.0,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.26000810394291185,
+            "HelpfulnessEvaluator": 0.6264967840068724,
+            "InstructionFollowingEvaluator": 0.11349511205021585
+          },
+          "composite_score": {
+            "mean": 0.8405326923774483,
+            "lower_2_5": 0.7659690748270944,
+            "median": 0.8415716435231522,
+            "upper_97_5": 0.9133286120606073
+          },
+          "composite_score_standard_deviation": 0.04014940974689083,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.10587357812368042,
+            "lower_2_5": -0.2656888121730676,
+            "median": 0.10095552912743799,
+            "upper_97_5": 0.41365277044958737
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.03946174886605287,
+            "lower_2_5": -0.23058067845567473,
+            "median": -0.026472285461365472,
+            "upper_97_5": 0.09371487313679787
+          },
+          "beats_equal_fraction": 0.37,
+          "within_guardrail_fraction": 0.59
+        }
+      ]
+    },
+    {
+      "case_count": 20,
+      "agent_runs": 3,
+      "judge_replays": 2,
+      "fractions": [
+        {
+          "learned_fraction": 0.0,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.33333333333333326,
+            "HelpfulnessEvaluator": 0.33333333333333326,
+            "InstructionFollowingEvaluator": 0.33333333333333326
+          },
+          "composite_score": {
+            "mean": 0.8570817777777777,
+            "lower_2_5": 0.7977344444444444,
+            "median": 0.858536111111111,
+            "upper_97_5": 0.9055648611111111
+          },
+          "composite_score_standard_deviation": 0.027003944857335652,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.1483042723890799,
+            "lower_2_5": -0.0909598501105252,
+            "median": 0.14898630232463186,
+            "upper_97_5": 0.4272008206786454
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.0,
+            "lower_2_5": 0.0,
+            "median": 0.0,
+            "upper_97_5": 0.0
+          },
+          "beats_equal_fraction": 0.0,
+          "within_guardrail_fraction": 1.0
+        },
+        {
+          "learned_fraction": 0.25,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.309550201359073,
+            "HelpfulnessEvaluator": 0.4122676114680296,
+            "InstructionFollowingEvaluator": 0.27818218717289733
+          },
+          "composite_score": {
+            "mean": 0.8543606138818162,
+            "lower_2_5": 0.7999593870631847,
+            "median": 0.856773493241092,
+            "upper_97_5": 0.8987645238682594
+          },
+          "composite_score_standard_deviation": 0.026031768667565833,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.1436139904815746,
+            "lower_2_5": -0.09240154555417979,
+            "median": 0.14945854242979034,
+            "upper_97_5": 0.41718739547414624
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.0046902819075052855,
+            "lower_2_5": -0.030457838770369706,
+            "median": -0.0037698189279738717,
+            "upper_97_5": 0.0228558279400423
+          },
+          "beats_equal_fraction": 0.37,
+          "within_guardrail_fraction": 1.0
+        },
+        {
+          "learned_fraction": 0.5,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.2857670693848128,
+            "HelpfulnessEvaluator": 0.49120188960272576,
+            "InstructionFollowingEvaluator": 0.22303104101246138
+          },
+          "composite_score": {
+            "mean": 0.8516394499858546,
+            "lower_2_5": 0.8005395927714865,
+            "median": 0.8548187583687492,
+            "upper_97_5": 0.8950692058509736
+          },
+          "composite_score_standard_deviation": 0.0255661685114008,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.13680155005861033,
+            "lower_2_5": -0.09329708467357792,
+            "median": 0.1473437715905725,
+            "upper_97_5": 0.4018273499318322
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.011502722330469553,
+            "lower_2_5": -0.06553927905299259,
+            "median": -0.009482091111697438,
+            "upper_97_5": 0.0448485678392667
+          },
+          "beats_equal_fraction": 0.33,
+          "within_guardrail_fraction": 0.91
+        },
+        {
+          "learned_fraction": 0.75,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.2619839374105525,
+            "HelpfulnessEvaluator": 0.570136167737422,
+            "InstructionFollowingEvaluator": 0.16787989485202545
+          },
+          "composite_score": {
+            "mean": 0.848918286089893,
+            "lower_2_5": 0.793395520980999,
+            "median": 0.8531936840315877,
+            "upper_97_5": 0.8927286198980945
+          },
+          "composite_score_standard_deviation": 0.025634761848573162,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.12782702404801208,
+            "lower_2_5": -0.10971838746399136,
+            "median": 0.12573592010226697,
+            "upper_97_5": 0.38103411863506076
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.02047724834106781,
+            "lower_2_5": -0.10961126413745793,
+            "median": -0.015065232897850219,
+            "upper_97_5": 0.0611362397257904
+          },
+          "beats_equal_fraction": 0.3,
+          "within_guardrail_fraction": 0.8
+        },
+        {
+          "learned_fraction": 1.0,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.2382008054362922,
+            "HelpfulnessEvaluator": 0.6490704458721183,
+            "InstructionFollowingEvaluator": 0.11272874869158947
+          },
+          "composite_score": {
+            "mean": 0.8461971221939315,
+            "lower_2_5": 0.7891439520859952,
+            "median": 0.8490994490791539,
+            "upper_97_5": 0.8904024654196815
+          },
+          "composite_score_standard_deviation": 0.026233358687000462,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.11702755557659293,
+            "lower_2_5": -0.13197048064034908,
+            "median": 0.10651561647649462,
+            "upper_97_5": 0.3548789989961205
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.03127671681248698,
+            "lower_2_5": -0.16134543874556598,
+            "median": -0.02551187522357405,
+            "upper_97_5": 0.07614744394409462
+          },
+          "beats_equal_fraction": 0.27,
+          "within_guardrail_fraction": 0.68
+        }
+      ]
+    },
+    {
+      "case_count": 40,
+      "agent_runs": 3,
+      "judge_replays": 2,
+      "fractions": [
+        {
+          "learned_fraction": 0.0,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.33333333333333326,
+            "HelpfulnessEvaluator": 0.33333333333333326,
+            "InstructionFollowingEvaluator": 0.33333333333333326
+          },
+          "composite_score": {
+            "mean": 0.8574848749999999,
+            "lower_2_5": 0.8322158333333333,
+            "median": 0.8568055555555555,
+            "upper_97_5": 0.8796593749999999
+          },
+          "composite_score_standard_deviation": 0.013403632993576964,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.13374198439310045,
+            "lower_2_5": 0.0014275323281182336,
+            "median": 0.13906496053819312,
+            "upper_97_5": 0.2793161180579536
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.0,
+            "lower_2_5": 0.0,
+            "median": 0.0,
+            "upper_97_5": 0.0
+          },
+          "beats_equal_fraction": 0.0,
+          "within_guardrail_fraction": 1.0
+        },
+        {
+          "learned_fraction": 0.25,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.3101511556251229,
+            "HelpfulnessEvaluator": 0.4059949935073195,
+            "InstructionFollowingEvaluator": 0.2838538508675576
+          },
+          "composite_score": {
+            "mean": 0.8554491808072562,
+            "lower_2_5": 0.8301202882943033,
+            "median": 0.8550120268192323,
+            "upper_97_5": 0.8775110102573571
+          },
+          "composite_score_standard_deviation": 0.01314651860721504,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.12833843629259115,
+            "lower_2_5": -0.010415277642106847,
+            "median": 0.1288213600015668,
+            "upper_97_5": 0.2698025975390217
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.005403548100509283,
+            "lower_2_5": -0.018870261436557394,
+            "median": -0.005572358523719793,
+            "upper_97_5": 0.008833100163485893
+          },
+          "beats_equal_fraction": 0.27,
+          "within_guardrail_fraction": 1.0
+        },
+        {
+          "learned_fraction": 0.5,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.2869689779169125,
+            "HelpfulnessEvaluator": 0.47865665368130556,
+            "InstructionFollowingEvaluator": 0.2343743684017819
+          },
+          "composite_score": {
+            "mean": 0.8534134866145124,
+            "lower_2_5": 0.8258258890886065,
+            "median": 0.8529375804975327,
+            "upper_97_5": 0.8781308798930442
+          },
+          "composite_score_standard_deviation": 0.013444739541311002,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.12138563471964779,
+            "lower_2_5": -0.02371742340898409,
+            "median": 0.11971339838070454,
+            "upper_97_5": 0.2661373477383694
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.012356349673452649,
+            "lower_2_5": -0.03962947796033948,
+            "median": -0.011818630132038155,
+            "upper_97_5": 0.017079534616970073
+          },
+          "beats_equal_fraction": 0.2,
+          "within_guardrail_fraction": 1.0
+        },
+        {
+          "learned_fraction": 0.75,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.26378680020870215,
+            "HelpfulnessEvaluator": 0.5513183138552917,
+            "InstructionFollowingEvaluator": 0.1848948859360062
+          },
+          "composite_score": {
+            "mean": 0.8513777924217688,
+            "lower_2_5": 0.8236404429853359,
+            "median": 0.8520878030166334,
+            "upper_97_5": 0.8775155212284552
+          },
+          "composite_score_standard_deviation": 0.014263505423212954,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.11290246404145429,
+            "lower_2_5": -0.03796304100431955,
+            "median": 0.10971039091670674,
+            "upper_97_5": 0.2633571638223082
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.02083952035164616,
+            "lower_2_5": -0.06261677400474225,
+            "median": -0.020203427070872713,
+            "upper_97_5": 0.02355032329051344
+          },
+          "beats_equal_fraction": 0.18,
+          "within_guardrail_fraction": 0.9
+        },
+        {
+          "learned_fraction": 1.0,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.24060462250049175,
+            "HelpfulnessEvaluator": 0.6239799740292777,
+            "InstructionFollowingEvaluator": 0.1354154034702305
+          },
+          "composite_score": {
+            "mean": 0.8493420982290251,
+            "lower_2_5": 0.8199329786832344,
+            "median": 0.8494750752207763,
+            "upper_97_5": 0.8769226757177306
+          },
+          "composite_score_standard_deviation": 0.015520652317568781,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.10305196552582492,
+            "lower_2_5": -0.05289758021745923,
+            "median": 0.1043433683103753,
+            "upper_97_5": 0.25886769359925277
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.030690018867275532,
+            "lower_2_5": -0.0868719872872154,
+            "median": -0.030488792928807462,
+            "upper_97_5": 0.028533397187639628
+          },
+          "beats_equal_fraction": 0.16,
+          "within_guardrail_fraction": 0.71
+        }
+      ]
+    },
+    {
+      "case_count": 80,
+      "agent_runs": 3,
+      "judge_replays": 2,
+      "fractions": [
+        {
+          "learned_fraction": 0.0,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.33333333333333326,
+            "HelpfulnessEvaluator": 0.33333333333333326,
+            "InstructionFollowingEvaluator": 0.33333333333333326
+          },
+          "composite_score": {
+            "mean": 0.8568232222222223,
+            "lower_2_5": 0.8541465277777778,
+            "median": 0.8548361111111111,
+            "upper_97_5": 0.8624729166666667
+          },
+          "composite_score_standard_deviation": 0.0036223396412355005,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.13879329779053623,
+            "lower_2_5": 0.1265777917895038,
+            "median": 0.1325225199765374,
+            "upper_97_5": 0.154187093965274
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.0,
+            "lower_2_5": 0.0,
+            "median": 0.0,
+            "upper_97_5": 0.0
+          },
+          "beats_equal_fraction": 0.0,
+          "within_guardrail_fraction": 1.0
+        },
+        {
+          "learned_fraction": 0.25,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.3093092448718203,
+            "HelpfulnessEvaluator": 0.40299556687350546,
+            "InstructionFollowingEvaluator": 0.28769518825467416
+          },
+          "composite_score": {
+            "mean": 0.8554878613210282,
+            "lower_2_5": 0.8532183142024655,
+            "median": 0.8535763945686361,
+            "upper_97_5": 0.8606368679877289
+          },
+          "composite_score_standard_deviation": 0.003294176932782934,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.13296939484173037,
+            "lower_2_5": 0.12147624018178714,
+            "median": 0.12505868003643084,
+            "upper_97_5": 0.1489874167662518
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.005823902948805838,
+            "lower_2_5": -0.007463839940106576,
+            "median": -0.005199677199022201,
+            "upper_97_5": -0.005101551607716651
+          },
+          "beats_equal_fraction": 0.0,
+          "within_guardrail_fraction": 1.0
+        },
+        {
+          "learned_fraction": 0.5,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.28528515641030733,
+            "HelpfulnessEvaluator": 0.4726578004136776,
+            "InstructionFollowingEvaluator": 0.242057043176015
+          },
+          "composite_score": {
+            "mean": 0.854152500419834,
+            "lower_2_5": 0.8516005172938199,
+            "median": 0.8530062613594942,
+            "upper_97_5": 0.858800819308791
+          },
+          "composite_score_standard_deviation": 0.0030289208920520187,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.12574979110290627,
+            "lower_2_5": 0.11507585132711806,
+            "median": 0.11628984881023485,
+            "upper_97_5": 0.14223869476312945
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.013043506687629962,
+            "lower_2_5": -0.01623267116630256,
+            "median": -0.01194839920214455,
+            "upper_97_5": -0.011501940462385729
+          },
+          "beats_equal_fraction": 0.0,
+          "within_guardrail_fraction": 1.0
+        },
+        {
+          "learned_fraction": 0.75,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.26126106794879433,
+            "HelpfulnessEvaluator": 0.5423200339538498,
+            "InstructionFollowingEvaluator": 0.19641889809735588
+          },
+          "composite_score": {
+            "mean": 0.85281713951864,
+            "lower_2_5": 0.8499827203851744,
+            "median": 0.8524361281503525,
+            "upper_97_5": 0.8569647706298532
+          },
+          "composite_score_standard_deviation": 0.002844226572190672,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.11710597926946961,
+            "lower_2_5": 0.1062913439236588,
+            "median": 0.10731225054941718,
+            "upper_97_5": 0.13386433381658133
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.021687318521066593,
+            "lower_2_5": -0.026231176052878613,
+            "median": -0.020322760148692665,
+            "upper_97_5": -0.019265541240086614
+          },
+          "beats_equal_fraction": 0.0,
+          "within_guardrail_fraction": 1.0
+        },
+        {
+          "learned_fraction": 1.0,
+          "subsamples": 100,
+          "mean_weights": {
+            "GoalSuccessRateEvaluator": 0.23723697948728134,
+            "HelpfulnessEvaluator": 0.6119822674940218,
+            "InstructionFollowingEvaluator": 0.15078075301869673
+          },
+          "composite_score": {
+            "mean": 0.851481778617446,
+            "lower_2_5": 0.8483649234765288,
+            "median": 0.8518659949412108,
+            "upper_97_5": 0.8551287219509154
+          },
+          "composite_score_standard_deviation": 0.002756336469921411,
+          "held_out_correlation": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": 0.1071182978538597,
+            "lower_2_5": 0.09523755368131158,
+            "median": 0.09822092700950276,
+            "upper_97_5": 0.12391184571879856
+          },
+          "held_out_delta_from_equal": {
+            "defined": 100,
+            "defined_fraction": 1.0,
+            "mean": -0.031674999936676496,
+            "lower_2_5": -0.03728496629522583,
+            "median": -0.030275248246475442,
+            "upper_97_5": -0.02835686478000103
+          },
+          "beats_equal_fraction": 0.0,
+          "within_guardrail_fraction": 1.0
+        }
+      ]
+    }
+  ],
+  "final_design": {
+    "case_count": 80,
+    "best_held_out_learned_fraction": 0.0,
+    "largest_guardrailed_learned_fraction": 1.0
+  }
+}
