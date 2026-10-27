@@ -8,15 +8,18 @@ from .algorithm import (
     DiagnosticWeightingMethod,
     EqualWeightingAlgorithm,
     FittedCalibrationModel,
+    RestorableCalibrationAlgorithm,
     WeightingMethod,
 )
 from .calibration import CalibrationResult, Calibrator
+from .calibration_profile import CalibrationProfile, ProfileCompatibility
 
 __all__ = [
     "CalibrationAlgorithm",
     "CalibrationData",
     "CalibrationExample",
     "CalibrationObservation",
+    "CalibrationProfile",
     "CalibrationResult",
     "CalibrationStatus",
     "Calibrator",
@@ -24,5 +27,7 @@ __all__ = [
     "DiagnosticWeightingMethod",
     "EqualWeightingAlgorithm",
     "FittedCalibrationModel",
+    "ProfileCompatibility",
+    "RestorableCalibrationAlgorithm",
     "WeightingMethod",
 ]
