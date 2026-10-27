@@ -6,8 +6,10 @@ from .calibrator import (
     CalibrationResult,
     CalibrationStatus,
     Calibrator,
+    DiagnosticWeightingAlgorithm,
     EqualWeightingAlgorithm,
     FittedCalibrationModel,
+    WeightingMethod,
 )
 
 __all__ = [
@@ -18,6 +20,8 @@ __all__ = [
     "CalibrationResult",
     "CalibrationStatus",
     "Calibrator",
+    "DiagnosticWeightingAlgorithm",
     "EqualWeightingAlgorithm",
     "FittedCalibrationModel",
+    "WeightingMethod",
 ]

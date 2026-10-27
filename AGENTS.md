@@ -131,6 +131,7 @@ strands-evals/
 │   │       ├── __init__.py                   # Calibration public exports
 │   │       ├── algorithm.py                  # Pluggable fitting/model interfaces
 │   │       ├── calibration.py                # Public calibration facade
+│   │       ├── _bootstrap.py                 # Hierarchical bootstrap diagnostics
 │   │       ├── _calibration.py               # Private report/statistics helpers
 │   │       └── _collection.py                # Fixed-output replay collection
 │   │
@@ -231,6 +232,7 @@ strands-evals/
 │   ├── experimental/
 │   │   └── calibrator/
 │   │       ├── test_algorithm.py
+│   │       ├── test_bootstrap.py
 │   │       ├── test_calibration.py
 │   │       ├── test_calibration_customer_workflow.py
 │   │       └── test_collection.py
