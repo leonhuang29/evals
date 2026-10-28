@@ -7,9 +7,12 @@ from strands_evals.evaluators import Evaluator
 from strands_evals.experimental import (
     CalibrationApplicationResult,
     CalibrationProfile,
+    CalibrationTarget,
+    CalibrationTargetDefinition,
     Calibrator,
 )
 from strands_evals.experimental.calibrator import (
+    CalibratedEqualAlgorithm,
     CalibrationData,
     DiagnosticWeightingAlgorithm,
     EqualWeightingAlgorithm,
@@ -126,6 +129,36 @@ def test_context_free_profile_restores_equal_model_and_diagnostics() -> None:
     assert restored.profile == profile
     assert restored.variance_components == calibrator.variance_components
     assert restored.repeatability_intervals == calibrator.repeatability_intervals
+
+
+def test_context_free_profile_restores_calibrated_equal_model() -> None:
+    calibrator = Calibrator(
+        step_sizes={"first": 0.5, "second": 0.5},
+        algorithm=CalibratedEqualAlgorithm(),
+    )
+    targets = [
+        CalibrationTarget(case_name=case_name, agent_run=agent_run, value=target)
+        for agent_run in range(2)
+        for case_name, target in (("case-a", 0.0), ("case-b", 1.0))
+    ]
+    calibrator.fit(
+        _reports(),
+        targets=targets,
+        target_definition=CalibrationTargetDefinition(name="task_success", version="1"),
+    )
+    profile = calibrator.profile
+
+    assert profile is not None
+    restored = Calibrator.from_profile(profile)
+
+    assert restored.algorithm_id == "calibrated_equal"
+    assert restored.weights == {"first": 0.5, "second": 0.5}
+    assert restored.model_parameters == calibrator.model_parameters
+    assert restored.score(_reports()) == pytest.approx(calibrator.score(_reports()))
+    application = restored.apply_profile(_reports())
+    assert application.selected_method == "calibrated_equal"
+    assert application.calibrated_probability == pytest.approx(application.selected_score)
+    assert application.status == "uncalibrated"
 
 
 def test_restored_context_free_profile_rejects_refit_on_changed_cases() -> None:

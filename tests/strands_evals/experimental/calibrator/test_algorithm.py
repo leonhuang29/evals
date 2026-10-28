@@ -1,8 +1,10 @@
+from dataclasses import replace
 from types import MappingProxyType
 
 import pytest
 
 from strands_evals.experimental.calibrator import (
+    CalibratedEqualAlgorithm,
     CalibrationData,
     CalibrationExample,
     CalibrationObservation,
@@ -43,6 +45,30 @@ def _data(
         ),
         repeatabilities=MappingProxyType({"first": 1.0, "second": 1.0}),
         target_definition=target_definition,
+    )
+
+
+def _target_data(score_targets: list[tuple[float, float]]) -> CalibrationData:
+    examples = tuple(
+        CalibrationExample(
+            case_name=f"case-{index}",
+            agent_run=0,
+            evaluator_scores=MappingProxyType(
+                {
+                    "first": score,
+                    "second": score,
+                }
+            ),
+            target=target,
+        )
+        for index, (score, target) in enumerate(score_targets)
+    )
+    return replace(
+        _data(),
+        observations=(),
+        examples=examples,
+        case_names=tuple(example.case_name for example in examples),
+        target_definition=CalibrationTargetDefinition(name="task_success", version="1"),
     )
 
 
@@ -138,3 +164,130 @@ def test_equal_weighting_model_rejects_changed_evaluator_set() -> None:
 
     with pytest.raises(ValueError, match="evaluator scores do not match"):
         model.predict({"first": 0.2})
+
+
+def test_calibrated_equal_algorithm_learns_probability_mapping() -> None:
+    data = _target_data(
+        [
+            (0.2, 0.0),
+            (0.2, 0.0),
+            (0.2, 0.0),
+            (0.2, 1.0),
+            (0.8, 0.0),
+            (0.8, 1.0),
+            (0.8, 1.0),
+            (0.8, 1.0),
+        ]
+    )
+
+    model = CalibratedEqualAlgorithm().fit(data)
+
+    assert dict(model.weights) == {"first": 0.5, "second": 0.5}
+    assert model.intercept == pytest.approx(-1.83102, abs=1e-4)
+    assert model.scale == pytest.approx(3.66204, abs=1e-4)
+    assert model.predict({"first": 0.2, "second": 0.2}) == pytest.approx(0.25, abs=1e-6)
+    assert model.predict({"first": 0.8, "second": 0.8}) == pytest.approx(0.75, abs=1e-6)
+
+
+def test_calibrated_equal_algorithm_is_deterministic_and_restorable() -> None:
+    data = _target_data(
+        [
+            (0.2, 0.0),
+            (0.2, 1.0),
+            (0.8, 0.0),
+            (0.8, 1.0),
+        ]
+    )
+    algorithm = CalibratedEqualAlgorithm()
+
+    first = algorithm.fit(data)
+    second = algorithm.fit(data)
+    restored = algorithm.restore(first.parameters)
+
+    assert second.parameters == first.parameters
+    assert restored.parameters == first.parameters
+    assert restored.predict({"first": 0.4, "second": 0.6}) == pytest.approx(
+        first.predict({"first": 0.4, "second": 0.6})
+    )
+
+
+def test_calibrated_equal_algorithm_uses_base_rate_when_scores_do_not_vary() -> None:
+    model = CalibratedEqualAlgorithm().fit(
+        _target_data(
+            [
+                (0.5, 0.0),
+                (0.5, 0.0),
+                (0.5, 0.0),
+                (0.5, 1.0),
+            ]
+        )
+    )
+
+    assert model.scale == 0.0
+    assert model.predict({"first": 0.0, "second": 1.0}) == pytest.approx(0.25)
+
+
+def test_calibrated_equal_algorithm_requires_targets() -> None:
+    with pytest.raises(ValueError, match="requires complete external targets"):
+        CalibratedEqualAlgorithm().fit(_data())
+
+
+def test_calibrated_equal_algorithm_requires_binary_targets() -> None:
+    with pytest.raises(ValueError, match="binary targets"):
+        CalibratedEqualAlgorithm().fit(
+            _target_data(
+                [
+                    (0.2, 0.0),
+                    (0.8, 0.5),
+                ]
+            )
+        )
+
+
+def test_calibrated_equal_algorithm_requires_both_target_classes() -> None:
+    with pytest.raises(ValueError, match="both binary target classes"):
+        CalibratedEqualAlgorithm().fit(
+            _target_data(
+                [
+                    (0.2, 1.0),
+                    (0.8, 1.0),
+                ]
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("parameters", "message"),
+    [
+        (
+            {
+                "weights": {"first": 0.25, "second": 0.75},
+                "intercept": 0.0,
+                "scale": 1.0,
+            },
+            "weights must be equal",
+        ),
+        (
+            {
+                "weights": {"first": 0.5, "second": 0.5},
+                "intercept": float("nan"),
+                "scale": 1.0,
+            },
+            "intercept must be a finite number",
+        ),
+        (
+            {
+                "weights": {"first": 0.5, "second": 0.5},
+                "intercept": 0.0,
+                "scale": "invalid",
+            },
+            "scale must be a finite number",
+        ),
+    ],
+)
+def test_calibrated_equal_restore_rejects_invalid_parameters(
+    parameters: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        CalibratedEqualAlgorithm().restore(parameters)

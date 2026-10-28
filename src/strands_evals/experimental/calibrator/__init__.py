@@ -1,5 +1,6 @@
 from ._calibration import CalibrationStatus
 from .algorithm import (
+    CalibratedEqualAlgorithm,
     CalibrationAlgorithm,
     CalibrationData,
     CalibrationExample,
@@ -17,6 +18,7 @@ from .calibration import CalibrationApplicationResult, CalibrationResult, Calibr
 from .calibration_profile import CalibrationProfile, ProfileCompatibility
 
 __all__ = [
+    "CalibratedEqualAlgorithm",
     "CalibrationAlgorithm",
     "CalibrationApplicationResult",
     "CalibrationData",

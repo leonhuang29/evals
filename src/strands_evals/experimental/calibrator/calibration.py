@@ -40,6 +40,7 @@ from ._collection import _collect_repeated_reports
 from .algorithm import (
     DIAGNOSTIC_WEIGHTING_METHODS,
     WEIGHTING_METHODS,
+    CalibratedEqualAlgorithm,
     CalibrationAlgorithm,
     CalibrationData,
     CalibrationTarget,
@@ -80,8 +81,8 @@ class CalibrationApplicationResult(BaseModel):
 
     The raw reports are deep copies of the supplied evidence. The selected
     score is stored separately so applying a profile does not overwrite the
-    originally reported result. `calibrated_probability` is reserved for the
-    later target-calibration profile extension and remains `None` here.
+    originally reported result. `calibrated_probability` is populated when
+    the selected model is a target-calibrated probability mapping.
     """
 
     reports_by_run: list[list[EvaluationReport]]
@@ -630,13 +631,14 @@ class Calibrator:
         )
         raw_evaluator_scores = dataset.evaluator_scores()
         profile = self._profile.model_copy(deep=True)
+        selected_score = _score_dataset(self._model, dataset)
         return CalibrationApplicationResult(
             reports_by_run=[
                 [report.model_copy(deep=True) for report in replay_reports] for replay_reports in reports_by_run
             ],
             raw_evaluator_scores=raw_evaluator_scores,
             raw_equal_score=sum(raw_evaluator_scores.values()) / len(raw_evaluator_scores),
-            selected_score=_score_dataset(self._model, dataset),
+            selected_score=selected_score,
             selected_method=self.algorithm_id,
             algorithm_version=self.algorithm_version,
             model_parameters=self.model_parameters,
@@ -644,6 +646,9 @@ class Calibrator:
             status=self.status,
             profile_id=profile.profile_id,
             profile_schema_version=profile.schema_version,
+            calibrated_probability=(
+                selected_score if self.algorithm_id == CalibratedEqualAlgorithm.algorithm_id else None
+            ),
         )
 
     def score_candidates(
@@ -734,6 +739,8 @@ def _built_in_algorithm_for_profile(
     """Resolve a built-in restorable algorithm from a profile identity."""
     if profile.algorithm_id == EqualWeightingAlgorithm.algorithm_id:
         return EqualWeightingAlgorithm()
+    if profile.algorithm_id == CalibratedEqualAlgorithm.algorithm_id:
+        return CalibratedEqualAlgorithm()
     for method in DIAGNOSTIC_WEIGHTING_METHODS:
         algorithm = DiagnosticWeightingAlgorithm(method)
         if profile.algorithm_id == algorithm.algorithm_id:

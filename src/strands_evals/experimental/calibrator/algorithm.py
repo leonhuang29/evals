@@ -7,6 +7,9 @@ from types import MappingProxyType
 from typing import Any, Literal, Protocol, runtime_checkable
 
 _EPSILON = 1e-15
+_LOGISTIC_L2 = 1e-8
+_LOGISTIC_MAX_ITERATIONS = 100
+_LOGISTIC_TOLERANCE = 1e-10
 
 WeightingMethod = Literal["equal", "repeatability", "inverse_step", "inverse_sqrt_step"]
 WEIGHTING_METHODS: tuple[WeightingMethod, ...] = (
@@ -221,6 +224,87 @@ class EqualWeightingAlgorithm:
 
 
 @dataclass(frozen=True)
+class CalibratedEqualModel:
+    """Equal-weight average mapped to an external-target probability."""
+
+    evaluator_weights: Mapping[str, float]
+    intercept: float
+    scale: float
+    algorithm_id: str = "calibrated_equal"
+    algorithm_version: int = 1
+
+    @property
+    def weights(self) -> Mapping[str, float]:
+        """Return the equal evaluator weights."""
+        return self.evaluator_weights
+
+    @property
+    def parameters(self) -> Mapping[str, Any]:
+        """Return the fitted probability-mapping parameters."""
+        return {
+            "weights": dict(self.evaluator_weights),
+            "intercept": self.intercept,
+            "scale": self.scale,
+        }
+
+    def predict(self, evaluator_scores: Mapping[str, float]) -> float:
+        """Map one equal-weight average to a calibrated probability."""
+        raw_average = _weighted_average(
+            evaluator_scores,
+            self.evaluator_weights,
+        )
+        return _sigmoid(self.intercept + self.scale * raw_average)
+
+
+class CalibratedEqualAlgorithm:
+    """Fit a logistic probability mapping over an equal-weight average."""
+
+    algorithm_id = "calibrated_equal"
+    algorithm_version = 1
+
+    def fit(self, data: CalibrationData) -> CalibratedEqualModel:
+        """Fit an intercept and scale against complete binary targets."""
+        if not data.has_targets:
+            raise ValueError("calibrated equal fitting requires complete external targets")
+
+        evaluator_weights = _equal_weights(data.evaluator_names)
+        raw_averages: list[float] = []
+        targets: list[float] = []
+        for example in data.examples:
+            if example.target is None:
+                raise ValueError("calibrated equal fitting requires complete external targets")
+            if example.target not in {0.0, 1.0}:
+                raise ValueError("calibrated equal fitting requires binary targets containing only 0 or 1")
+            raw_averages.append(
+                _weighted_average(
+                    example.evaluator_scores,
+                    evaluator_weights,
+                )
+            )
+            targets.append(example.target)
+
+        if set(targets) != {0.0, 1.0}:
+            raise ValueError("calibrated equal fitting requires both binary target classes")
+
+        intercept, scale = _fit_logistic_mapping(raw_averages, targets)
+        return CalibratedEqualModel(
+            evaluator_weights=MappingProxyType(evaluator_weights),
+            intercept=intercept,
+            scale=scale,
+        )
+
+    def restore(self, parameters: Mapping[str, Any]) -> CalibratedEqualModel:
+        """Restore a calibrated-equal model from saved profile parameters."""
+        evaluator_weights = _restore_weights(parameters)
+        _validate_equal_weights(evaluator_weights)
+        return CalibratedEqualModel(
+            evaluator_weights=MappingProxyType(evaluator_weights),
+            intercept=_restore_finite_parameter(parameters, "intercept"),
+            scale=_restore_finite_parameter(parameters, "scale"),
+        )
+
+
+@dataclass(frozen=True)
 class DiagnosticWeightingModel:
     """Fitted weighting model retained for stability diagnostics."""
 
@@ -345,6 +429,128 @@ def _equal_weights(evaluator_names: tuple[str, ...] | list[str]) -> dict[str, fl
     """Return an equal-weight vector for the supplied evaluators."""
     weight = 1.0 / len(evaluator_names)
     return {name: weight for name in evaluator_names}
+
+
+def _weighted_average(
+    evaluator_scores: Mapping[str, float],
+    evaluator_weights: Mapping[str, float],
+) -> float:
+    """Return a weighted average after validating the evaluator set."""
+    if set(evaluator_scores) != set(evaluator_weights):
+        missing = sorted(set(evaluator_weights) - set(evaluator_scores))
+        unexpected = sorted(set(evaluator_scores) - set(evaluator_weights))
+        raise ValueError(f"evaluator scores do not match the fitted model; missing={missing}, unexpected={unexpected}")
+    return sum(evaluator_weights[name] * evaluator_scores[name] for name in evaluator_scores)
+
+
+def _fit_logistic_mapping(
+    raw_averages: list[float],
+    targets: list[float],
+) -> tuple[float, float]:
+    """Fit a deterministic regularized two-parameter logistic mapping."""
+    base_rate = sum(targets) / len(targets)
+    intercept = math.log(base_rate / (1.0 - base_rate))
+    if max(raw_averages) - min(raw_averages) <= _LOGISTIC_TOLERANCE:
+        return intercept, 0.0
+    scale = 0.0
+    loss = _logistic_loss(raw_averages, targets, intercept, scale)
+
+    for _ in range(_LOGISTIC_MAX_ITERATIONS):
+        gradient_intercept = _LOGISTIC_L2 * intercept
+        gradient_scale = _LOGISTIC_L2 * scale
+        hessian_intercept = _LOGISTIC_L2
+        hessian_cross = 0.0
+        hessian_scale = _LOGISTIC_L2
+
+        for raw_average, target in zip(raw_averages, targets, strict=True):
+            probability = _sigmoid(intercept + scale * raw_average)
+            residual = probability - target
+            curvature = probability * (1.0 - probability)
+            gradient_intercept += residual
+            gradient_scale += residual * raw_average
+            hessian_intercept += curvature
+            hessian_cross += curvature * raw_average
+            hessian_scale += curvature * raw_average * raw_average
+
+        if max(abs(gradient_intercept), abs(gradient_scale)) <= _LOGISTIC_TOLERANCE:
+            return intercept, scale
+
+        determinant = hessian_intercept * hessian_scale - hessian_cross * hessian_cross
+        if determinant <= _EPSILON:
+            raise ValueError("calibrated equal logistic fit is numerically singular")
+
+        intercept_step = (hessian_scale * gradient_intercept - hessian_cross * gradient_scale) / determinant
+        scale_step = (hessian_intercept * gradient_scale - hessian_cross * gradient_intercept) / determinant
+
+        step_size = 1.0
+        while step_size >= _LOGISTIC_TOLERANCE:
+            candidate_intercept = intercept - step_size * intercept_step
+            candidate_scale = scale - step_size * scale_step
+            candidate_loss = _logistic_loss(
+                raw_averages,
+                targets,
+                candidate_intercept,
+                candidate_scale,
+            )
+            if candidate_loss <= loss:
+                intercept = candidate_intercept
+                scale = candidate_scale
+                loss = candidate_loss
+                break
+            step_size /= 2.0
+        else:
+            raise ValueError("calibrated equal logistic fit did not converge")
+
+        if max(abs(step_size * intercept_step), abs(step_size * scale_step)) <= _LOGISTIC_TOLERANCE:
+            return intercept, scale
+
+    raise ValueError("calibrated equal logistic fit did not converge")
+
+
+def _logistic_loss(
+    raw_averages: list[float],
+    targets: list[float],
+    intercept: float,
+    scale: float,
+) -> float:
+    """Return regularized binary log loss without exponential overflow."""
+    loss = 0.5 * _LOGISTIC_L2 * (intercept * intercept + scale * scale)
+    for raw_average, target in zip(raw_averages, targets, strict=True):
+        linear_value = intercept + scale * raw_average
+        if linear_value >= 0.0:
+            loss += linear_value + math.log1p(math.exp(-linear_value))
+        else:
+            loss += math.log1p(math.exp(linear_value))
+        loss -= target * linear_value
+    return loss
+
+
+def _sigmoid(value: float) -> float:
+    """Return a numerically stable logistic sigmoid."""
+    if value >= 0.0:
+        return 1.0 / (1.0 + math.exp(-value))
+    exponential = math.exp(value)
+    return exponential / (1.0 + exponential)
+
+
+def _restore_finite_parameter(
+    parameters: Mapping[str, Any],
+    name: str,
+) -> float:
+    """Validate and return one finite saved model parameter."""
+    value = parameters.get(name)
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
+        raise ValueError(f"saved {name} must be a finite number")
+    return float(value)
+
+
+def _validate_equal_weights(weights: Mapping[str, float]) -> None:
+    """Require a restored calibrated-equal model to retain equal weights."""
+    if not weights:
+        raise ValueError("saved calibrated-equal weights must not be empty")
+    expected = 1.0 / len(weights)
+    if any(not math.isclose(weight, expected, abs_tol=1e-12) for weight in weights.values()):
+        raise ValueError("saved calibrated-equal weights must be equal")
 
 
 def _restore_weights(parameters: Mapping[str, Any]) -> dict[str, float]:
