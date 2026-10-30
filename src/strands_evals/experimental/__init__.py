@@ -1,17 +1,19 @@
 from .calibrator import (
     CalibrationAlgorithm,
     CalibrationData,
-    CalibrationExample,
+    CalibrationModel,
     CalibrationObservation,
+    CalibrationSample,
     EqualWeightingAlgorithm,
-    FittedCalibrationModel,
+    VarianceSource,
 )
 
 __all__ = [
     "CalibrationAlgorithm",
     "CalibrationData",
-    "CalibrationExample",
+    "CalibrationModel",
     "CalibrationObservation",
+    "CalibrationSample",
     "EqualWeightingAlgorithm",
-    "FittedCalibrationModel",
+    "VarianceSource",
 ]

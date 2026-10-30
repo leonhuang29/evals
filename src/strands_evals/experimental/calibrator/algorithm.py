@@ -1,9 +1,11 @@
 """Pluggable algorithms for experimental evaluator calibration."""
 
+from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
-from types import MappingProxyType
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Literal
+
+VarianceSource = Literal["judge", "agent", "case"]
 
 
 @dataclass(frozen=True)
@@ -18,8 +20,8 @@ class CalibrationObservation:
 
 
 @dataclass(frozen=True)
-class CalibrationExample:
-    """Replay-aggregated evaluator features for one case and agent run."""
+class CalibrationSample:
+    """Replay-aggregated evaluator scores for one case and agent run."""
 
     case_name: str
     agent_run: int
@@ -31,115 +33,89 @@ class CalibrationData:
     """Validated observations and measurement diagnostics supplied to an algorithm."""
 
     observations: tuple[CalibrationObservation, ...]
-    examples: tuple[CalibrationExample, ...]
     evaluator_names: tuple[str, ...]
     case_names: tuple[str, ...]
     agent_runs: int
     judge_replays: int
     step_sizes: Mapping[str, float]
-    variance_components: Mapping[str, Mapping[str, float]]
+    variance_components: Mapping[str, Mapping[VarianceSource, float]]
     repeatabilities: Mapping[str, float]
 
-    def evaluator_means(self) -> dict[str, float]:
-        """Return the mean replay-aggregated score for each evaluator."""
-        values: dict[str, list[float]] = {name: [] for name in self.evaluator_names}
-        for example in self.examples:
-            for evaluator_name, score in example.evaluator_scores.items():
-                values[evaluator_name].append(score)
-        return {name: sum(scores) / len(scores) for name, scores in values.items()}
+    @property
+    def samples(self) -> tuple[CalibrationSample, ...]:
+        """Return replay-aggregated samples grouped by case and agent run."""
+        grouped_scores: dict[tuple[str, int], dict[str, list[float]]] = {}
+        for observation in self.observations:
+            sample_scores = grouped_scores.setdefault((observation.case_name, observation.agent_run), {})
+            sample_scores.setdefault(observation.evaluator_name, []).append(observation.score)
+
+        samples = []
+        ordered_groups = sorted(
+            grouped_scores.items(),
+            key=lambda item: (item[0][1], item[0][0]),
+        )
+        for (case_name, agent_run), evaluator_scores in ordered_groups:
+            samples.append(
+                CalibrationSample(
+                    case_name=case_name,
+                    agent_run=agent_run,
+                    evaluator_scores={
+                        evaluator_name: sum(scores) / len(scores) for evaluator_name, scores in evaluator_scores.items()
+                    },
+                )
+            )
+        return tuple(samples)
 
 
-@runtime_checkable
-class FittedCalibrationModel(Protocol):
+class CalibrationModel(ABC):
     """Scoring model returned by a `CalibrationAlgorithm`."""
 
     @property
+    @abstractmethod
     def algorithm_id(self) -> str:
         """Return the stable algorithm identifier."""
         ...
 
     @property
+    @abstractmethod
     def algorithm_version(self) -> int:
         """Return the fitted algorithm version."""
         ...
 
     @property
+    @abstractmethod
     def weights(self) -> Mapping[str, float] | None:
         """Return evaluator weights when the model has a linear aggregation."""
         ...
 
     @property
+    @abstractmethod
     def parameters(self) -> Mapping[str, Any]:
         """Return serializable fitted parameters for inspection and persistence."""
         ...
 
+    @abstractmethod
     def predict(self, evaluator_scores: Mapping[str, float]) -> float:
         """Predict one case-run outcome from its evaluator features."""
         ...
 
 
-@runtime_checkable
-class CalibrationAlgorithm(Protocol):
+class CalibrationAlgorithm(ABC):
     """Stateless fitting strategy used by the calibration facade."""
 
     @property
+    @abstractmethod
     def algorithm_id(self) -> str:
         """Return the stable algorithm identifier."""
         ...
 
     @property
+    @abstractmethod
     def algorithm_version(self) -> int:
         """Return the algorithm implementation version."""
         ...
 
-    def fit(self, data: CalibrationData) -> FittedCalibrationModel:
-        """Fit and return an immutable scoring model."""
+    @abstractmethod
+    def fit(self, data: CalibrationData) -> CalibrationModel:
+        """Fit and return a scoring model."""
         ...
-
-
-@dataclass(frozen=True)
-class EqualWeightingModel:
-    """Fitted equal-weight average."""
-
-    evaluator_weights: Mapping[str, float]
-    algorithm_id: str = "equal_weighting"
-    algorithm_version: int = 1
-
-    @property
-    def weights(self) -> Mapping[str, float]:
-        """Return the normalized evaluator weights."""
-        return self.evaluator_weights
-
-    @property
-    def parameters(self) -> Mapping[str, Any]:
-        """Return the fitted equal-weight parameters."""
-        return {"weights": dict(self.evaluator_weights)}
-
-    def predict(self, evaluator_scores: Mapping[str, float]) -> float:
-        """Return the equal-weight average of evaluator scores."""
-        if set(evaluator_scores) != set(self.evaluator_weights):
-            missing = sorted(set(self.evaluator_weights) - set(evaluator_scores))
-            unexpected = sorted(set(evaluator_scores) - set(self.evaluator_weights))
-            raise ValueError(
-                f"evaluator scores do not match the fitted model; missing={missing}, unexpected={unexpected}"
-            )
-        return sum(self.evaluator_weights[name] * evaluator_scores[name] for name in evaluator_scores)
-
-
-class EqualWeightingAlgorithm:
-    """Transparent equal-weight baseline used when no target is available."""
-
-    algorithm_id = "equal_weighting"
-    algorithm_version = 1
-
-    def fit(self, data: CalibrationData) -> EqualWeightingModel:
-        """Fit an equal-weight model over the configured evaluators."""
-        return EqualWeightingModel(
-            evaluator_weights=MappingProxyType(_equal_weights(data.evaluator_names)),
-        )
-
-
-def _equal_weights(evaluator_names: tuple[str, ...] | list[str]) -> dict[str, float]:
-    """Return an equal-weight vector for the supplied evaluators."""
-    weight = 1.0 / len(evaluator_names)
-    return {name: weight for name in evaluator_names}

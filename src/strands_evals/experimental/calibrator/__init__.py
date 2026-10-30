@@ -1,17 +1,19 @@
 from .algorithm import (
     CalibrationAlgorithm,
     CalibrationData,
-    CalibrationExample,
+    CalibrationModel,
     CalibrationObservation,
-    EqualWeightingAlgorithm,
-    FittedCalibrationModel,
+    CalibrationSample,
+    VarianceSource,
 )
+from .equal_weighting import EqualWeightingAlgorithm
 
 __all__ = [
     "CalibrationAlgorithm",
     "CalibrationData",
-    "CalibrationExample",
+    "CalibrationModel",
     "CalibrationObservation",
+    "CalibrationSample",
     "EqualWeightingAlgorithm",
-    "FittedCalibrationModel",
+    "VarianceSource",
 ]

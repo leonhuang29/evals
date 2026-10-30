@@ -129,7 +129,8 @@ strands-evals/
 │   ├── experimental/                         # Experimental features (no stability guarantees)
 │   │   └── calibrator/                       # Statistical evaluator calibration
 │   │       ├── __init__.py                   # Calibration public exports
-│   │       └── algorithm.py                  # Pluggable fitting/model interfaces
+│   │       ├── algorithm.py                  # Pluggable fitting/model interfaces
+│   │       └── equal_weighting.py            # Equal-weight baseline algorithm
 │   │
 │   ├── detectors/                            # Failure detection + RCA
 │   │   ├── failure_detector.py               # detect_failures (model.stream text mode)
@@ -227,7 +228,8 @@ strands-evals/
 │   ├── detectors/
 │   ├── experimental/
 │   │   └── calibrator/
-│   │       └── test_algorithm.py
+│   │       ├── test_algorithm.py
+│   │       └── test_equal_weighting.py
 │   ├── redteam/                          # Mirrors src/strands_evals/redteam/
 │   ├── simulation/
 │   ├── extractors/
