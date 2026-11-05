@@ -134,7 +134,8 @@ strands-evals/
 │   ├── experimental/                         # Experimental features (no stability guarantees)
 │   │   └── comparison/                       # Deterministic statistical report comparison
 │   │       ├── __init__.py
-│   │       └── pairing.py                    # Exact baseline/candidate report pairing
+│   │       ├── pairing.py                    # Exact baseline/candidate report pairing
+│   │       └── summary.py                    # Per-evaluator paired statistics
 │   │
 │   ├── detectors/                            # Failure detection + RCA
 │   │   ├── failure_detector.py               # detect_failures (model.stream text mode)
@@ -232,7 +233,8 @@ strands-evals/
 │   ├── detectors/
 │   ├── experimental/
 │   │   └── comparison/
-│   │       └── test_pairing.py
+│   │       ├── test_pairing.py
+│   │       └── test_summary.py
 │   ├── redteam/                          # Mirrors src/strands_evals/redteam/
 │   ├── simulation/
 │   ├── extractors/
