@@ -2,7 +2,9 @@
 
 import hashlib
 import json
-from typing import Any
+from collections import defaultdict
+from statistics import fmean
+from typing import Any, Sequence
 
 from pydantic import BaseModel
 
@@ -25,6 +27,16 @@ class PairedScore(BaseModel):
     baseline_score: float
     candidate_score: float
     delta: float
+
+
+class PairedTrialScore(PairedScore):
+    """One paired evaluator score from a specific trial.
+
+    Attributes:
+        trial_index: Zero-based position of the trial in the report sequences.
+    """
+
+    trial_index: int
 
 
 def pair_reports(baseline: EvaluationReport, candidate: EvaluationReport) -> list[PairedScore]:
@@ -104,6 +116,123 @@ def pair_reports(baseline: EvaluationReport, candidate: EvaluationReport) -> lis
     return pairs
 
 
+def pair_report_trials(
+    baseline_reports: Sequence[EvaluationReport],
+    candidate_reports: Sequence[EvaluationReport],
+) -> list[PairedTrialScore]:
+    """Pair corresponding baseline and candidate reports by trial index.
+
+    Every trial must contain the same case/evaluator inputs and applicability
+    pattern. The returned rows retain their trial index so callers can inspect
+    individual runs before aggregating them.
+
+    Args:
+        baseline_reports: Baseline reports ordered by trial.
+        candidate_reports: Candidate reports ordered by trial.
+
+    Returns:
+        Paired evaluator scores from every trial.
+
+    Raises:
+        ValueError: If no trials are supplied, the trial counts differ, or the
+            reports are not comparable across trials.
+    """
+
+    if not baseline_reports or not candidate_reports:
+        raise ValueError("baseline_reports and candidate_reports must contain at least one trial")
+    if len(baseline_reports) != len(candidate_reports):
+        raise ValueError(
+            "baseline_reports and candidate_reports must contain the same number of trials: "
+            f"baseline={len(baseline_reports)}, candidate={len(candidate_reports)}"
+        )
+
+    reference_inputs: dict[tuple[str, str], str] | None = None
+    reference_pair_keys: set[tuple[str, str]] | None = None
+    trial_pairs: list[PairedTrialScore] = []
+    for trial_index, (baseline, candidate) in enumerate(zip(baseline_reports, candidate_reports, strict=True)):
+        pairs = pair_reports(baseline, candidate)
+        input_signatures = _input_signatures(baseline, f"baseline trial {trial_index}")
+        pair_keys = {(pair.evaluator, pair.case_id) for pair in pairs}
+
+        if reference_inputs is None:
+            reference_inputs = input_signatures
+            reference_pair_keys = pair_keys
+        else:
+            if input_signatures != reference_inputs:
+                raise ValueError(
+                    f"trial reports do not contain the same case/evaluator inputs: trial_index={trial_index}"
+                )
+            if pair_keys != reference_pair_keys:
+                raise ValueError(
+                    f"trial reports do not contain the same applicable case/evaluator rows: trial_index={trial_index}"
+                )
+
+        trial_pairs.extend(PairedTrialScore(**pair.model_dump(), trial_index=trial_index) for pair in pairs)
+
+    return sorted(trial_pairs, key=lambda pair: (pair.evaluator, pair.case_id, pair.trial_index))
+
+
+def aggregate_trial_pairs(pairs: Sequence[PairedTrialScore]) -> list[PairedScore]:
+    """Average repeated trial scores within each case and evaluator.
+
+    Each case/evaluator group must contain exactly one row for every observed
+    trial index. Aggregating before statistical comparison keeps repeated
+    agent runs from being treated as independent cases.
+
+    Args:
+        pairs: Trial-indexed scores returned by `pair_report_trials`.
+
+    Returns:
+        One averaged paired score per case and evaluator.
+
+    Raises:
+        ValueError: If a trial row is duplicated or a case/evaluator group is
+            missing an observed trial.
+    """
+
+    if not pairs:
+        return []
+
+    grouped: defaultdict[tuple[str, str], list[PairedTrialScore]] = defaultdict(list)
+    trial_indices: set[int] = set()
+    seen: set[tuple[int, str, str]] = set()
+    for pair in pairs:
+        row_key = (pair.trial_index, pair.evaluator, pair.case_id)
+        if row_key in seen:
+            raise ValueError(
+                "pairs contain duplicate trial/case/evaluator row: "
+                f"trial_index={pair.trial_index}, case_id={pair.case_id!r}, evaluator={pair.evaluator!r}"
+            )
+        seen.add(row_key)
+        trial_indices.add(pair.trial_index)
+        grouped[(pair.evaluator, pair.case_id)].append(pair)
+
+    aggregated: list[PairedScore] = []
+    for evaluator, case_id in sorted(grouped):
+        case_pairs = grouped[(evaluator, case_id)]
+        case_trial_indices = {pair.trial_index for pair in case_pairs}
+        if case_trial_indices != trial_indices:
+            raise ValueError(
+                "case/evaluator group does not contain every trial: "
+                f"case_id={case_id!r}, evaluator={evaluator!r}, "
+                f"expected={sorted(trial_indices)}, actual={sorted(case_trial_indices)}"
+            )
+
+        baseline_score = fmean(pair.baseline_score for pair in case_pairs)
+        candidate_score = fmean(pair.candidate_score for pair in case_pairs)
+        aggregated.append(
+            PairedScore(
+                case_id=case_id,
+                evaluator=evaluator,
+                baseline_score=baseline_score,
+                candidate_score=candidate_score,
+                delta=candidate_score - baseline_score,
+            )
+        )
+
+    return aggregated
+
+
 def _index_report(report: EvaluationReport, report_name: str) -> dict[tuple[str, str], int]:
     if len(report.cases) != len(report.scores):
         raise ValueError(f"{report_name} report has {len(report.cases)} cases but {len(report.scores)} scores")
@@ -128,6 +257,11 @@ def _index_report(report: EvaluationReport, report_name: str) -> dict[tuple[str,
         rows[key] = index
 
     return rows
+
+
+def _input_signatures(report: EvaluationReport, report_name: str) -> dict[tuple[str, str], str]:
+    rows = _index_report(report, report_name)
+    return {key: _canonical_json(report.cases[index]["input"]) for key, index in rows.items()}
 
 
 def _case_id(case: dict, report_name: str, index: int) -> str:
