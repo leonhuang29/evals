@@ -16,6 +16,7 @@ class EvaluatorSummary(BaseModel):
     Attributes:
         evaluator: Name of the evaluator being summarized.
         case_count: Number of paired cases in the summary.
+        trial_count: Number of repeated trials represented by each case.
         mean_delta: Mean candidate-minus-baseline score change.
         confidence_level: Coverage level used for the confidence interval.
         confidence_lower: Lower bound of the case-bootstrap interval, or
@@ -31,6 +32,7 @@ class EvaluatorSummary(BaseModel):
 
     evaluator: str
     case_count: int
+    trial_count: int
     mean_delta: float
     confidence_level: float
     confidence_lower: float | None
@@ -66,7 +68,8 @@ def summarize_pairs(
 
     Raises:
         ValueError: If the interval settings are invalid or a case/evaluator
-            pair is duplicated.
+            pair is duplicated, or an evaluator's cases represent inconsistent
+            trial counts.
     """
 
     if not 0.0 < confidence_level < 1.0:
@@ -88,6 +91,9 @@ def summarize_pairs(
     summaries: list[EvaluatorSummary] = []
     for evaluator in sorted(grouped):
         evaluator_pairs = sorted(grouped[evaluator], key=lambda pair: pair.case_id)
+        trial_counts = {pair.trial_count for pair in evaluator_pairs}
+        if len(trial_counts) != 1:
+            raise ValueError(f"pairs contain inconsistent trial counts for evaluator: evaluator={evaluator!r}")
         deltas = [pair.delta for pair in evaluator_pairs]
         confidence_interval = (
             _bootstrap_mean_interval(
@@ -103,6 +109,7 @@ def summarize_pairs(
             EvaluatorSummary(
                 evaluator=evaluator,
                 case_count=len(deltas),
+                trial_count=trial_counts.pop(),
                 mean_delta=fmean(deltas),
                 confidence_level=confidence_level,
                 confidence_lower=confidence_interval[0],

@@ -4,9 +4,9 @@ import hashlib
 import json
 from collections import defaultdict
 from statistics import fmean
-from typing import Any, Sequence
+from typing import Any, Collection, Sequence
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ...types.evaluation_report import EvaluationReport
 
@@ -20,6 +20,7 @@ class PairedScore(BaseModel):
         baseline_score: Score produced by the baseline.
         candidate_score: Score produced by the candidate.
         delta: Candidate score minus baseline score.
+        trial_count: Number of trials represented by the scores.
     """
 
     case_id: str
@@ -27,6 +28,7 @@ class PairedScore(BaseModel):
     baseline_score: float
     candidate_score: float
     delta: float
+    trial_count: int = Field(default=1, ge=1)
 
 
 class PairedTrialScore(PairedScore):
@@ -172,29 +174,47 @@ def pair_report_trials(
     return sorted(trial_pairs, key=lambda pair: (pair.evaluator, pair.case_id, pair.trial_index))
 
 
-def aggregate_trial_pairs(pairs: Sequence[PairedTrialScore]) -> list[PairedScore]:
+def aggregate_trial_pairs(
+    pairs: Sequence[PairedTrialScore],
+    *,
+    corrupted_trial_indices: Collection[int] = (),
+) -> list[PairedScore]:
     """Average repeated trial scores within each case and evaluator.
 
     Each case/evaluator group must contain exactly one row for every observed
-    trial index. Aggregating before statistical comparison keeps repeated
-    agent runs from being treated as independent cases.
+    trial index that was not explicitly marked as corrupted. Aggregating before
+    statistical comparison keeps repeated agent runs from being treated as
+    independent cases. Corruption is never inferred from a low score or failed
+    evaluation because those may represent genuine agent behavior.
 
     Args:
         pairs: Trial-indexed scores returned by `pair_report_trials`.
+        corrupted_trial_indices: Trial indices to remove uniformly from every
+            case and evaluator before aggregation.
 
     Returns:
         One averaged paired score per case and evaluator.
 
     Raises:
-        ValueError: If a trial row is duplicated or a case/evaluator group is
-            missing an observed trial.
+        ValueError: If a corrupted trial index is unknown, no usable trials
+            remain, a trial row is duplicated, or a case/evaluator group is
+            missing an observed usable trial.
     """
 
     if not pairs:
         return []
 
+    observed_trial_indices = {pair.trial_index for pair in pairs}
+    corrupted = set(corrupted_trial_indices)
+    unknown_corrupted = corrupted - observed_trial_indices
+    if unknown_corrupted:
+        raise ValueError(f"corrupted_trial_indices contain unknown trials: {sorted(unknown_corrupted)}")
+
+    trial_indices = observed_trial_indices - corrupted
+    if not trial_indices:
+        raise ValueError("no usable trials remain after removing corrupted trials")
+
     grouped: defaultdict[tuple[str, str], list[PairedTrialScore]] = defaultdict(list)
-    trial_indices: set[int] = set()
     seen: set[tuple[int, str, str]] = set()
     for pair in pairs:
         row_key = (pair.trial_index, pair.evaluator, pair.case_id)
@@ -204,8 +224,8 @@ def aggregate_trial_pairs(pairs: Sequence[PairedTrialScore]) -> list[PairedScore
                 f"trial_index={pair.trial_index}, case_id={pair.case_id!r}, evaluator={pair.evaluator!r}"
             )
         seen.add(row_key)
-        trial_indices.add(pair.trial_index)
-        grouped[(pair.evaluator, pair.case_id)].append(pair)
+        if pair.trial_index not in corrupted:
+            grouped[(pair.evaluator, pair.case_id)].append(pair)
 
     aggregated: list[PairedScore] = []
     for evaluator, case_id in sorted(grouped):
@@ -227,6 +247,7 @@ def aggregate_trial_pairs(pairs: Sequence[PairedTrialScore]) -> list[PairedScore
                 baseline_score=baseline_score,
                 candidate_score=candidate_score,
                 delta=candidate_score - baseline_score,
+                trial_count=len(trial_indices),
             )
         )
 
