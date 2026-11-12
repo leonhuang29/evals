@@ -28,10 +28,14 @@ def test_summarizes_case_deltas_by_evaluator():
     assert summaries[0].mean_delta == pytest.approx(0.2)
     assert summaries[0].confidence_lower == pytest.approx(0.2)
     assert summaries[0].confidence_upper == pytest.approx(0.2)
+    assert summaries[0].wilcoxon_p_value == pytest.approx(0.5)
+    assert summaries[0].adjusted_p_value == pytest.approx(0.5)
     assert summaries[1].case_count == 1
     assert summaries[1].mean_delta == pytest.approx(-0.1)
     assert summaries[1].confidence_lower is None
     assert summaries[1].confidence_upper is None
+    assert summaries[1].wilcoxon_p_value is None
+    assert summaries[1].adjusted_p_value is None
 
 
 def test_bootstrap_interval_reflects_case_variation():
@@ -65,6 +69,35 @@ def test_bootstrap_interval_is_deterministic_regardless_of_input_order():
 
 def test_returns_empty_list_when_there_are_no_pairs():
     assert summarize_pairs([]) == []
+
+
+def test_adjusts_wilcoxon_p_values_across_evaluators():
+    pairs = [
+        _pair(case_id=f"case-{index}", evaluator="consistent", baseline=0.1, candidate=candidate)
+        for index, candidate in enumerate([0.2, 0.3, 0.4, 0.5])
+    ]
+    pairs.extend(
+        _pair(case_id=f"case-{index}", evaluator="mixed", baseline=0.5, candidate=candidate)
+        for index, candidate in enumerate([0.6, 0.7, 0.2, 0.9])
+    )
+
+    summaries = summarize_pairs(pairs, bootstrap_samples=100)
+
+    assert [summary.wilcoxon_p_value for summary in summaries] == pytest.approx([0.125, 0.625])
+    assert [summary.adjusted_p_value for summary in summaries] == pytest.approx([0.25, 0.625])
+
+
+def test_all_zero_deltas_have_p_value_one():
+    summary = summarize_pairs(
+        [
+            _pair(case_id="case-a", evaluator="correctness", baseline=0.2, candidate=0.2),
+            _pair(case_id="case-b", evaluator="correctness", baseline=0.4, candidate=0.4),
+        ],
+        bootstrap_samples=100,
+    )[0]
+
+    assert summary.wilcoxon_p_value == 1.0
+    assert summary.adjusted_p_value == 1.0
 
 
 def test_rejects_duplicate_case_evaluator_rows():
