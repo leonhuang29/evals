@@ -31,6 +31,7 @@ def test_summarizes_case_deltas_by_evaluator():
     assert summaries[0].confidence_upper == pytest.approx(0.2)
     assert summaries[0].wilcoxon_p_value == pytest.approx(0.5)
     assert summaries[0].adjusted_p_value == pytest.approx(0.5)
+    assert summaries[0].verdict == "no_clear_change"
     assert summaries[1].case_count == 1
     assert summaries[1].mean_delta == pytest.approx(-0.1)
     assert summaries[1].confidence_lower is None
@@ -99,6 +100,50 @@ def test_all_zero_deltas_have_p_value_one():
 
     assert summary.wilcoxon_p_value == 1.0
     assert summary.adjusted_p_value == 1.0
+    assert summary.verdict == "no_clear_change"
+
+
+@pytest.mark.parametrize(
+    ("candidate_scores", "expected_verdict"),
+    [
+        ([0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "improved"),
+        ([0.0, 0.1, 0.2, 0.3, 0.4, 0.5], "regressed"),
+    ],
+)
+def test_assigns_evidence_based_verdicts(candidate_scores: list[float], expected_verdict: str):
+    baseline_scores = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+    summary = summarize_pairs(
+        [
+            _pair(
+                case_id=f"case-{index}",
+                evaluator="correctness",
+                baseline=baseline,
+                candidate=candidate,
+            )
+            for index, (baseline, candidate) in enumerate(zip(baseline_scores, candidate_scores, strict=True))
+        ],
+        bootstrap_samples=100,
+    )[0]
+
+    assert summary.verdict == expected_verdict
+
+
+def test_minimum_effect_prevents_small_change_verdict():
+    summary = summarize_pairs(
+        [
+            _pair(
+                case_id=f"case-{index}",
+                evaluator="correctness",
+                baseline=baseline,
+                candidate=baseline + 0.1,
+            )
+            for index, baseline in enumerate([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+        ],
+        bootstrap_samples=100,
+        minimum_effect=0.1,
+    )[0]
+
+    assert summary.verdict == "no_clear_change"
 
 
 def test_rejects_duplicate_case_evaluator_rows():
@@ -128,3 +173,8 @@ def test_rejects_invalid_confidence_level(confidence_level: float):
 def test_rejects_invalid_bootstrap_sample_count():
     with pytest.raises(ValueError, match="bootstrap_samples"):
         summarize_pairs([], bootstrap_samples=0)
+
+
+def test_rejects_negative_minimum_effect():
+    with pytest.raises(ValueError, match="minimum_effect"):
+        summarize_pairs([], minimum_effect=-0.1)
