@@ -134,6 +134,7 @@ strands-evals/
 │   ├── experimental/                         # Experimental features (no stability guarantees)
 │   │   └── comparison/                       # Deterministic statistical report comparison
 │   │       ├── __init__.py
+│   │       ├── compare.py                    # Strict paired-comparison facade and result
 │   │       ├── pairing.py                    # Exact baseline/candidate report pairing
 │   │       └── summary.py                    # Per-evaluator paired statistics
 │   │
@@ -233,6 +234,7 @@ strands-evals/
 │   ├── detectors/
 │   ├── experimental/
 │   │   └── comparison/
+│   │       ├── test_compare.py
 │   │       ├── test_pairing.py
 │   │       └── test_summary.py
 │   ├── redteam/                          # Mirrors src/strands_evals/redteam/
