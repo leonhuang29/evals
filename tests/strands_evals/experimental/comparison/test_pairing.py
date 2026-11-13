@@ -186,7 +186,9 @@ def test_pairs_and_aggregates_reports_across_trials():
     assert [pair.case_id for pair in aggregated] == ["case-a", "case-b"]
     assert [pair.baseline_score for pair in aggregated] == pytest.approx([0.3, 0.5])
     assert [pair.candidate_score for pair in aggregated] == pytest.approx([0.45, 0.65])
+    assert [pair.trial_count for pair in aggregated] == [2, 2]
     assert summary.case_count == 2
+    assert summary.trial_count == 2
     assert summary.mean_delta == pytest.approx(0.15)
 
 
@@ -264,3 +266,45 @@ def test_rejects_incomplete_or_duplicate_trial_pairs():
         aggregate_trial_pairs([first, first])
     with pytest.raises(ValueError, match="does not contain every trial"):
         aggregate_trial_pairs([first, second])
+
+
+def test_removes_explicitly_corrupted_trials_before_aggregation():
+    pairs = [
+        PairedTrialScore(
+            case_id="case",
+            evaluator="correctness",
+            baseline_score=baseline,
+            candidate_score=candidate,
+            delta=candidate - baseline,
+            trial_index=trial_index,
+        )
+        for trial_index, baseline, candidate in [
+            (0, 0.1, 0.2),
+            (1, 0.9, 0.0),
+            (2, 0.3, 0.6),
+        ]
+    ]
+
+    aggregated = aggregate_trial_pairs(pairs, corrupted_trial_indices={1})
+
+    assert len(aggregated) == 1
+    assert aggregated[0].baseline_score == pytest.approx(0.2)
+    assert aggregated[0].candidate_score == pytest.approx(0.4)
+    assert aggregated[0].delta == pytest.approx(0.2)
+    assert aggregated[0].trial_count == 2
+
+
+def test_rejects_unknown_or_all_corrupted_trials():
+    pair = PairedTrialScore(
+        case_id="case",
+        evaluator="correctness",
+        baseline_score=0.1,
+        candidate_score=0.2,
+        delta=0.1,
+        trial_index=0,
+    )
+
+    with pytest.raises(ValueError, match="unknown trials"):
+        aggregate_trial_pairs([pair], corrupted_trial_indices={1})
+    with pytest.raises(ValueError, match="no usable trials"):
+        aggregate_trial_pairs([pair], corrupted_trial_indices={0})

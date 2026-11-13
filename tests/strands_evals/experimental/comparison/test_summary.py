@@ -25,6 +25,7 @@ def test_summarizes_case_deltas_by_evaluator():
 
     assert [summary.evaluator for summary in summaries] == ["correctness", "helpfulness"]
     assert summaries[0].case_count == 2
+    assert summaries[0].trial_count == 1
     assert summaries[0].mean_delta == pytest.approx(0.2)
     assert summaries[0].confidence_lower == pytest.approx(0.2)
     assert summaries[0].confidence_upper == pytest.approx(0.2)
@@ -105,6 +106,17 @@ def test_rejects_duplicate_case_evaluator_rows():
 
     with pytest.raises(ValueError, match="duplicate case/evaluator row"):
         summarize_pairs([pair, pair])
+
+
+def test_rejects_inconsistent_trial_counts():
+    pairs = [
+        _pair(case_id="case-a", evaluator="correctness", baseline=0.1, candidate=0.2),
+        _pair(case_id="case-b", evaluator="correctness", baseline=0.2, candidate=0.3),
+    ]
+    pairs[0].trial_count = 2
+
+    with pytest.raises(ValueError, match="inconsistent trial counts"):
+        summarize_pairs(pairs)
 
 
 @pytest.mark.parametrize("confidence_level", [0.0, 1.0])
