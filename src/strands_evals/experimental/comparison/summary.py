@@ -2,12 +2,14 @@
 
 from collections import defaultdict
 from statistics import fmean
-from typing import Sequence
+from typing import Literal, Sequence
 
 from pydantic import BaseModel
 from scipy.stats import bootstrap, false_discovery_control, wilcoxon
 
 from .pairing import PairedScore
+
+EvaluatorVerdict = Literal["improved", "regressed", "no_clear_change"]
 
 
 class EvaluatorSummary(BaseModel):
@@ -28,6 +30,7 @@ class EvaluatorSummary(BaseModel):
         adjusted_p_value: Wilcoxon p-value adjusted across evaluators using
             Benjamini-Hochberg false discovery rate control, or `None` when
             the Wilcoxon test is unavailable.
+        verdict: Evidence-based direction of the evaluator change.
     """
 
     evaluator: str
@@ -39,6 +42,7 @@ class EvaluatorSummary(BaseModel):
     confidence_upper: float | None
     wilcoxon_p_value: float | None
     adjusted_p_value: float | None
+    verdict: EvaluatorVerdict = "no_clear_change"
 
 
 def summarize_pairs(
@@ -47,6 +51,7 @@ def summarize_pairs(
     confidence_level: float = 0.95,
     bootstrap_samples: int = 2_000,
     seed: int = 0,
+    minimum_effect: float = 0.0,
 ) -> list[EvaluatorSummary]:
     """Summarize paired case deltas separately for each evaluator.
 
@@ -62,6 +67,8 @@ def summarize_pairs(
         confidence_level: Desired confidence interval coverage.
         bootstrap_samples: Number of case-bootstrap resamples.
         seed: Seed used to make bootstrap results reproducible.
+        minimum_effect: Smallest absolute score change that can receive an
+            `improved` or `regressed` verdict.
 
     Returns:
         One summary per evaluator, sorted by evaluator name.
@@ -76,6 +83,8 @@ def summarize_pairs(
         raise ValueError("confidence_level must be greater than 0 and less than 1")
     if bootstrap_samples < 1:
         raise ValueError("bootstrap_samples must be at least 1")
+    if minimum_effect < 0.0:
+        raise ValueError("minimum_effect must be greater than or equal to 0")
 
     grouped: defaultdict[str, list[PairedScore]] = defaultdict(list)
     seen: set[tuple[str, str]] = set()
@@ -128,7 +137,26 @@ def summarize_pairs(
         for summary, adjusted_p_value in zip(tested_summaries, adjusted_p_values, strict=True):
             summary.adjusted_p_value = float(adjusted_p_value)
 
+    for summary in summaries:
+        summary.verdict = _evaluator_verdict(summary, minimum_effect)
+
     return summaries
+
+
+def _evaluator_verdict(summary: EvaluatorSummary, minimum_effect: float) -> EvaluatorVerdict:
+    significance_level = 1.0 - summary.confidence_level
+    if (
+        summary.adjusted_p_value is None
+        or summary.adjusted_p_value > significance_level
+        or summary.confidence_lower is None
+        or summary.confidence_upper is None
+    ):
+        return "no_clear_change"
+    if summary.confidence_lower > minimum_effect:
+        return "improved"
+    if summary.confidence_upper < -minimum_effect:
+        return "regressed"
+    return "no_clear_change"
 
 
 def _wilcoxon_p_value(deltas: list[float]) -> float:
