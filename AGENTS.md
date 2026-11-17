@@ -131,7 +131,27 @@ strands-evals/
 │   │   │   └── sequentialbreak/              # SequentialBreakStrategy
 │   │   └── (evaluator in evaluators/redteam/, types in types/redteam/)
 │   │
+│   ├── optimization/                         # Optimizer: searches declared agent changes, picks one on validation
+│   │   ├── declaration/                      # Markers, tunable / TunableFactory, Space (flat typed keys), files, tools
+│   │   ├── candidate.py                      # Candidate (typed values, content id, parent), diff
+│   │   ├── execution/                        # Trial statuses, default rollout, trace capture, TrialRunner
+│   │   ├── scoring/                          # Metric registry, objectives (incl. Pareto), constraints
+│   │   ├── score_model/                      # ScoreModel / Fit protocols, BayesBenchModel, effects, the ranking
+│   │   ├── bayesbench/                       # Factor encoder, conjugate posterior, prior-scale averaging, contrasts, held-out
+│   │   │                                     # diagnostics; numpy/scipy only, imported only by score_model/bayesbench.py
+│   │   ├── search/                           # Proposer, Block / Search / schedules, TPE, Reflection, Thompson
+│   │   ├── selection/                        # Selection, TopRanked (picks the parent)
+│   │   ├── setup/                            # Split, Budget
+│   │   ├── end_phase.py                      # FinalPick: finalists on validation, champion (and Pareto front) vs baseline on test
+│   │   ├── record/                           # Run directory, events.jsonl, resume
+│   │   ├── optimizer.py / result.py
+│   │   ├── prompt_templates/reflection/
+│   │   └── (data records in types/optimization/)
+│   │
 │   ├── experimental/                         # Experimental features (no stability guarantees)
+│   │   └── comparison/                       # Strict baseline/candidate report pairing
+│   │       ├── __init__.py
+│   │       └── pairing.py                    # Exact baseline/candidate report pairing
 │   │
 │   ├── detectors/                            # Failure detection + RCA
 │   │   ├── failure_detector.py               # detect_failures (model.stream text mode)
@@ -212,6 +232,7 @@ strands-evals/
 │       ├── trace.py                          # Session, Trace, SpanUnion
 │       ├── detector.py                       # FailureItem, RCAItem, DiagnosisResult, ...
 │       ├── multimodal.py
+│       ├── optimization/                     # Frozen pydantic records the optimizer saves (trials, scores, events)
 │       ├── redteam/
 │       │   ├── config.py                     # AttackGoal, RedTeamConfig, Severity
 │       │   ├── risk_category.py              # RISK_CATEGORIES, DEFAULT_SEVERITY
@@ -228,7 +249,10 @@ strands-evals/
 │   ├── chaos/
 │   ├── detectors/
 │   ├── experimental/
+│   │   └── comparison/
+│   │       └── test_pairing.py
 │   ├── redteam/                          # Mirrors src/strands_evals/redteam/
+│   ├── optimization/                     # Mirrors src/strands_evals/optimization/
 │   ├── simulation/
 │   ├── extractors/
 │   ├── generators/
@@ -239,6 +263,7 @@ strands-evals/
 │   ├── cli/
 │   │   └── fixtures/                         # local agent / task / evaluator fixtures
 │   └── types/
+│       ├── optimization/
 │       └── redteam/
 │
 ├── tests_integ/                              # Integration tests (real providers)
@@ -480,6 +505,7 @@ If you are an agent opening a PR on behalf of a contributor, the human is the au
 - When editing `detectors/`, keep the three-tier RCA fallback and the `model.stream()` text-mode path for failure detection intact unless the PR explicitly targets those behaviors.
 - When editing `chaos/`, keep the `ContextVar`-based plugin dispatch and the discriminated-union effect serialization intact; `ChaosPlugin` should remain a thin reader of the active `ChaosCase`.
 - When editing `redteam/`, keep `AttackStrategy` instances stateless across cases (clear in `reset()`) and prefer extending the strategy library over modifying `RedTeamExperiment`'s cross-product loop.
+- When editing `optimization/`, a layer imports only the layers before it (`declaration → candidate → execution / scoring → score_model → search | selection | end_phase → record → optimizer`); `search`, `selection`, and `end_phase` never import each other, `setup/` imports only `types/` and `Case`, and only `optimizer.py` sees every layer. The search reads train data only; validation is read only by the end phase's pick and test only by its report. Agents are always rebuilt through `bind(values)`, never patched.
 
 ## Things NOT to Do
 
